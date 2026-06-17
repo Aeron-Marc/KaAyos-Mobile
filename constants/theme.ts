@@ -1,41 +1,33 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
 export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-  },
+  text: '#0d1b2a',
+  textSecondary: '#6b7885',
+  textMuted: '#9aaebf',
+  background: '#fafbfc',
+  surface: '#ffffff',
+  tint: '#2b516f',
+  icon: '#9aaebf',
+  iconActive: '#2b516f',
+  tabIconDefault: '#c8d6e0',
+  tabIconSelected: '#2b516f',
+  border: '#edf2f7',
+  primary: '#2b516f',
+  primaryLight: '#eef4f8',
+  success: '#16a34a',
+  successLight: '#f0fdf4',
+  warning: '#d97706',
+  warningLight: '#fffbeb',
+  error: '#dc2626',
+  star: '#f59e0b',
+  cardShadow: 'rgba(0, 0, 0, 0.04)',
 };
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
