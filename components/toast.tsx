@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <View style={styles.container} pointerEvents="box-none">
+      <View style={styles.container}>
         {toasts.map(toast => (
           <Animated.View
             key={toast.id}
@@ -61,7 +61,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute', top: 60, left: 20, right: 20, zIndex: 9999, gap: 8,
+    position: 'absolute', top: 60, left: 20, right: 20, zIndex: 9999, gap: 8, pointerEvents: 'box-none',
   },
   toast: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

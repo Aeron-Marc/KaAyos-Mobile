@@ -8,7 +8,7 @@ import { AnimatedTabIcon } from '@/components/animated-tab-icon';
 
 export default function TabLayout() {
   return (
-    <SafeAreaView edges={['top']} style={styles.safe}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
       <SwipeableTabContainer>
       <Tabs
         screenOptions={{

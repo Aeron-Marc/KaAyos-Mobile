@@ -7,7 +7,7 @@ import { PressableScale } from '@/components/pressable-scale';
 
 export default function MapScreen() {
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.topBar}>
         <PressableScale onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
