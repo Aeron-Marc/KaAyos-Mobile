@@ -4,25 +4,27 @@ import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useSegments, useRouter } from 'expo-router';
 
-const TAB_ROUTES = ['index', 'bookings', 'chat', 'profile'];
+const DEFAULT_ROUTES = ['index', 'bookings', 'chat', 'profile'];
 
-export function SwipeableTabContainer({ children }: { children: ReactNode }) {
+export function SwipeableTabContainer({ children, routes }: { children: ReactNode; routes?: string[] }) {
   const router = useRouter();
   const segments = useSegments();
   const { width: SCREEN_WIDTH } = useWindowDimensions();
   const translateX = useSharedValue(0);
+  const TAB_ROUTES = routes ?? DEFAULT_ROUTES;
 
-  const currentTab = segments.filter(s => s !== '(tabs)').pop() || 'index';
+  const tabGroup = segments.find(s => s.startsWith('(')) || '(tabs)';
+  const currentTab = segments.filter(s => s !== tabGroup).pop() || TAB_ROUTES[0];
   const currentIndex = TAB_ROUTES.indexOf(currentTab);
 
   const navigateToTab = (index: number) => {
     if (index < 0 || index >= TAB_ROUTES.length) return;
     translateX.value = 0;
     const route = TAB_ROUTES[index];
-    if (route === 'index') {
-      router.replace('/(tabs)' as any);
+    if (route === TAB_ROUTES[0]) {
+      router.replace(`/${tabGroup}` as any);
     } else {
-      router.replace(`/(tabs)/${route}` as any);
+      router.replace(`/${tabGroup}/${route}` as any);
     }
   };
 

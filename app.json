@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.kaayos.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#2b516f",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -27,6 +28,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-build-properties",
       [
         "expo-splash-screen",
         {
@@ -43,6 +45,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7c240189-8e34-4f3e-962a-c57c4e81e15f"
+      }
     }
   }
 }

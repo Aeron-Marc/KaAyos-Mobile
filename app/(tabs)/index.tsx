@@ -3,102 +3,71 @@ import { StyleSheet, ScrollView, TextInput, FlatList, RefreshControl, View, Text
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
-import { categories, workers, providerStats } from '@/constants/data';
+import * as api from '@/lib/api';
+import type { Category, Worker } from '@/lib/api';
 import { WorkerCard } from '@/components/worker-card';
+import type { WorkerCardData } from '@/components/worker-card';
 import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonCard } from '@/components/skeleton';
-import { useToast } from '@/components/toast';
+
+const categoryIcons: Record<string, string> = {
+  plumbing: 'water-outline',
+  electrical: 'flash-outline',
+  cleaning: 'sparkles-outline',
+  hvac: 'thermometer-outline',
+  carpentry: 'hammer-outline',
+  painting: 'color-palette-outline',
+  other: 'construct-outline',
+};
 
 export default function HomeScreen() {
-  const [role, setRole] = useState<'homeowner' | 'provider'>('homeowner');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { showToast } = useToast();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [cats, wrks] = await Promise.all([
+        api.getCategories(),
+        api.getWorkers(),
+      ]);
+      setCategories(cats);
+      setWorkers(wrks);
+    } catch (e) {
+      console.error('Failed to fetch data', e);
+    }
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchData().finally(() => setLoading(false));
+  }, [fetchData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise(r => setTimeout(r, 1000));
+    await fetchData();
     setRefreshing(false);
-  }, []);
+  }, [fetchData]);
 
   const filteredWorkers = useMemo(() => {
     return workers.filter(w => {
-      const matchesCategory = !activeCategory || w.category.toLowerCase() === activeCategory;
-      const matchesSearch = !searchQuery || w.name.toLowerCase().includes(searchQuery.toLowerCase()) || w.category.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = !activeCategory || w.category === activeCategory;
+      const matchesSearch = !searchQuery ||
+        w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (w.category || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, workers]);
 
   const refreshControl = <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />;
-  const jobStatuses = ['Plumbing - Leak Fix', 'Deep Cleaning', 'Electrical Inspection'];
-  const jobTimes = ['Tomorrow at 2:00 PM', 'Today at 4:00 PM', 'Oct 28 at 9:00 AM'];
-
-  if (role === 'provider') {
-    return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} refreshControl={refreshControl}>
-          <View style={styles.headerSection}>
-            <Text style={styles.greeting}>Quezon City, Metro Manila</Text>
-            <Text style={styles.pageTitle}>Provider Dashboard</Text>
-          </View>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Earnings</Text>
-              <Text style={styles.statValue}>₱{providerStats.earnings.toLocaleString()}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Jobs Done</Text>
-              <Text style={styles.statValue}>{providerStats.jobsCompleted}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Rating</Text>
-              <Text style={styles.statValue}>{providerStats.rating}</Text>
-            </View>
-          </View>
-
-          <View style={styles.chartCard}>
-            <Text style={styles.sectionTitle}>Weekly Earnings</Text>
-            <View style={styles.chart}>
-              {providerStats.weeklyData.map((day) => (
-                <View key={day.name} style={styles.chartBar}>
-                  <View style={[styles.bar, { height: (day.earnings / 3000) * 120 }]} />
-                  <Text style={styles.chartLabel}>{day.name}</Text>
-                  <Text style={styles.chartValue}>₱{day.earnings}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>Upcoming Jobs</Text>
-          {[1, 2, 3].map((i) => (
-            <View key={i} style={styles.jobCard}>
-              <View style={styles.jobInfo}>
-                <Text style={styles.jobTitle}>Job Request #{i}</Text>
-                <Text style={styles.jobMeta}>{jobStatuses[i - 1]}</Text>
-                <Text style={styles.jobTime}>{jobTimes[i - 1]}</Text>
-              </View>
-              <PressableScale haptics style={styles.acceptBtn} onPress={() => showToast(`Job #${i} accepted successfully`, 'success')}>
-                <Text style={styles.acceptBtnText}>Accept</Text>
-              </PressableScale>
-            </View>
-          ))}
-          <View style={{ height: 16 }} />
-        </ScrollView>
-    );
-  }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} refreshControl={refreshControl}>
         <View style={styles.headerSection}>
           <Text style={styles.greeting}>Quezon City, Metro Manila</Text>
-          <Text style={styles.pageTitle}>Good morning, Maria</Text>
+          <Text style={styles.pageTitle}>Find a service</Text>
         </View>
 
         <View style={styles.searchRow}>
@@ -119,25 +88,19 @@ export default function HomeScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           data={categories}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.categoriesList}
           scrollEnabled={false}
           renderItem={({ item }) => {
-            const isActive = activeCategory === item.id;
+            const isActive = activeCategory === item.slug;
             return (
               <PressableScale
-                onPress={() => setActiveCategory(isActive ? null : item.id)}
+                onPress={() => setActiveCategory(isActive ? null : item.slug)}
                 style={[styles.categoryItem, isActive && styles.categoryItemActive]}
               >
                 <View style={[styles.categoryIcon, isActive && styles.categoryIconActive]}>
                   <Ionicons
-                    name={
-                      item.id === 'plumbing' ? 'water-outline' :
-                      item.id === 'electrical' ? 'flash-outline' :
-                      item.id === 'cleaning' ? 'sparkles-outline' :
-                      item.id === 'hvac' ? 'thermometer-outline' :
-                      item.id === 'carpentry' ? 'hammer-outline' : 'color-palette-outline'
-                    }
+                    name={(categoryIcons[item.slug] || 'construct-outline') as any}
                     size={22}
                     color={isActive ? '#fff' : Colors.iconActive}
                   />
@@ -159,7 +122,11 @@ export default function HomeScreen() {
           </>
         ) : (
           filteredWorkers.map((worker) => (
-            <WorkerCard key={worker.id} worker={worker} onPress={() => router.push(`/worker/${worker.id}`)} />
+            <WorkerCard
+              key={worker.id}
+              worker={worker as WorkerCardData}
+              onPress={() => router.push(`/worker/${worker.id}`)}
+            />
           ))
         )}
         <View style={{ height: 16 }} />
@@ -185,21 +152,4 @@ const styles = StyleSheet.create({
   categoryIconActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
   categoryName: { fontSize: 12, fontWeight: '600', color: Colors.text },
   categoryNameActive: { color: '#fff' },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 24 },
-  statCard: { flex: 1, borderRadius: 14, padding: 16, backgroundColor: Colors.surface },
-  statLabel: { fontSize: 12, fontWeight: '500', color: Colors.textSecondary, marginBottom: 4 },
-  statValue: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  chartCard: { marginHorizontal: 20, borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 8 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 150, marginTop: 8 },
-  chartBar: { flex: 1, alignItems: 'center', gap: 4 },
-  bar: { width: '60%', borderRadius: 6, backgroundColor: Colors.primary },
-  chartLabel: { fontSize: 11, fontWeight: '500', color: Colors.textSecondary },
-  chartValue: { fontSize: 10, fontWeight: '700', color: Colors.text },
-  jobCard: { marginHorizontal: 20, borderRadius: 14, padding: 18, backgroundColor: Colors.surface, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  jobInfo: { flex: 1 },
-  jobTitle: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: 2 },
-  jobMeta: { fontSize: 14, color: Colors.textSecondary, marginBottom: 2 },
-  jobTime: { fontSize: 13, color: Colors.textMuted },
-  acceptBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.primary },
-  acceptBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 });
