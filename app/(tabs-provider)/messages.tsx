@@ -6,10 +6,11 @@ import * as api from '@/lib/api';
 import type { Message } from '@/lib/api';
 import { PressableScale } from '@/components/pressable-scale';
 import { useToast } from '@/components/toast';
-
-const workerId = 1;
+import { useAuth } from '@/lib/AuthContext';
 
 export default function ProviderMessagesScreen() {
+  const { user } = useAuth();
+  const workerId = user?.id;
   const [conversations, setConversations] = useState<{
     id: number;
     name: string;
@@ -24,6 +25,7 @@ export default function ProviderMessagesScreen() {
   const { showToast } = useToast();
 
   const fetchMessages = useCallback(async () => {
+    if (!workerId) return;
     try {
       const msgs = await api.getMessages(workerId);
       const grouped = msgs.reduce<Record<number, { name: string; avatar: string | null; msgs: Message[] }>>((acc, m) => {
@@ -55,7 +57,7 @@ export default function ProviderMessagesScreen() {
     } catch (e) {
       console.error('Failed to fetch messages', e);
     }
-  }, []);
+  }, [workerId]);
 
   useEffect(() => {
     fetchMessages().finally(() => setLoading(false));

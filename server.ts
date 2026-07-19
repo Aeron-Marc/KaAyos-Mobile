@@ -13,7 +13,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const PORT = 3000;
-const myIP = '172.20.10.11';
+const myIP = '192.168.1.3';
 
 const uploadsDir = path.join(__dirname, 'uploads', 'profiles');
 if (!fs.existsSync(uploadsDir)) {

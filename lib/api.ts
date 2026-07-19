@@ -1,4 +1,4 @@
-﻿const API_BASE = 'http://172.20.10.11:3000/api';
+﻿const API_BASE = 'http://192.168.1.3:3000/api';
 
 export interface User {
   id: number;
