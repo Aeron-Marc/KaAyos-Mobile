@@ -1,20 +1,22 @@
 ﻿import { useState } from 'react';
-import { StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, Text, View, Alert } from 'react-native';
+import { StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, Text, View, Alert, Image } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { PressableScale } from '@/components/pressable-scale';
 import * as api from '@/lib/api';
+import { useAuth } from '@/lib/AuthContext';
 
-type RegisterRole = 'homeowner' | 'provider';
+type RegisterRole = 'client' | 'provider';
 
 export default function RegisterScreen() {
-  const [role, setRole] = useState<RegisterRole>('homeowner');
+  const [role, setRole] = useState<RegisterRole>('client');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { signIn } = useAuth();
 
   const handleCreateAccount = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
@@ -32,15 +34,20 @@ export default function RegisterScreen() {
         role: role === 'provider' ? 'worker' : 'client',
       });
       if (response.success) {
-        Alert.alert('Account Created', 'You can now sign in.', [
-          { text: 'OK', onPress: () => router.replace('/auth/login') },
-        ]);
+        signIn(response.user, response.token);
+        setLoading(false);
+        const userRole = response.user.role;
+        if (userRole === 'worker') {
+          router.replace('/(tabs-provider)' as any);
+        } else {
+          router.replace('/(tabs)');
+        }
+        return;
       }
     } catch (error: any) {
       Alert.alert('Registration Failed', error.message || 'Could not create account.');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
@@ -49,19 +56,15 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.container}>
             <View style={styles.header}>
-              <View style={styles.logo}>
-                <Text style={styles.logoText}>K</Text>
-              </View>
-              <Text style={styles.appName}>KaAyos</Text>
-              <Text style={styles.tagline}>Join today</Text>
+              <Image source={require('@/assets/images/KaAyos_Logo_Mobile.png')} style={styles.logoImg} />
             </View>
 
             <View style={styles.roleToggle}>
               <PressableScale
-                style={[styles.roleOption, role === 'homeowner' && styles.roleOptionActive]}
-                onPress={() => setRole('homeowner')}
+                style={[styles.roleOption, role === 'client' && styles.roleOptionActive]}
+                onPress={() => setRole('client')}
               >
-                <Text style={[styles.roleText, role === 'homeowner' && styles.roleTextActive]}>Homeowner</Text>
+                <Text style={[styles.roleText, role === 'client' && styles.roleTextActive]}>Client</Text>
               </PressableScale>
               <PressableScale
                 style={[styles.roleOption, role === 'provider' && styles.roleOptionActive]}
@@ -133,9 +136,7 @@ export default function RegisterScreen() {
               </View>
 
               <PressableScale haptics style={styles.button} onPress={handleCreateAccount} disabled={loading}>
-                <Text style={styles.buttonText}>
-                  {loading ? 'Creating account...' : role === 'provider' ? 'Register as Provider' : 'Create Account'}
-                </Text>
+                <Text style={styles.buttonText}>{loading ? 'Creating account...' : 'Create Account'}</Text>
               </PressableScale>
 
               <View style={styles.footer}>
@@ -161,15 +162,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
   header: { alignItems: 'center', marginBottom: 32 },
   nameRow: { flexDirection: 'row', gap: 12 },
+  logoImg: { width: 160, height: 160, marginBottom: 24 },
   roleToggle: { flexDirection: 'row', marginHorizontal: 28, marginBottom: 24, borderRadius: 12, backgroundColor: Colors.surface, padding: 4 },
   roleOption: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   roleOptionActive: { backgroundColor: Colors.primary },
   roleText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
   roleTextActive: { color: '#fff' },
-  logo: { width: 56, height: 56, borderRadius: 16, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  logoText: { color: '#fff', fontSize: 28, fontWeight: '700', fontFamily: 'monospace' },
-  appName: { fontSize: 30, fontWeight: '700', color: Colors.text, marginBottom: 6 },
-  tagline: { fontSize: 16, color: Colors.textSecondary },
   form: { gap: 20 },
   field: { gap: 8 },
   label: { fontSize: 14, fontWeight: '600', color: Colors.text },

@@ -113,7 +113,10 @@ export default function BookingModal() {
   const validPrices = (worker.services ?? [])
     .map(s => s.custom_price || s.base_price)
     .filter((p): p is number => p !== null && p !== undefined);
-  const lowestPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
+  const lowestPrice = validPrices.length > 0 ? Math.min(...validPrices) : worker.hourly_rate;
+  const effectivePrice = lowestPrice && lowestPrice > 0 ? lowestPrice : 0;
+
+  const priceLabel = effectivePrice > 0 ? `PHP ${effectivePrice.toLocaleString()}/hr` : 'Price negotiable';
 
   const canSubmit = selectedDay !== null && address.trim().length > 0;
 
@@ -130,10 +133,11 @@ export default function BookingModal() {
       await api.createBooking({
         client_id: user.id,
         worker_id: worker.id,
-        service_category: worker.service_category || 'General',
+        service_category: worker.category || 'General',
         scheduled_at: scheduled.toISOString(),
         address: address.trim(),
         notes: '',
+        price: effectivePrice,
       });
       showToast('Booking created successfully!', 'success');
       setTimeout(() => router.back(), 1000);
@@ -158,8 +162,8 @@ export default function BookingModal() {
           <Ionicons name="person-circle-outline" size={48} color={Colors.primary} />
           <View style={styles.summaryInfo}>
             <Text style={styles.workerName}>{worker.name}</Text>
-            <Text style={styles.serviceLabel}>{worker.service_category || 'Service Provider'}</Text>
-            <Text style={styles.price}>PHP {lowestPrice?.toLocaleString() ?? '?'}/hr</Text>
+            <Text style={styles.serviceLabel}>{worker.category || 'Service Provider'}</Text>
+            <Text style={styles.price}>{priceLabel}</Text>
           </View>
         </View>
 

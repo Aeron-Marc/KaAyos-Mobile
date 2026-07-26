@@ -5,6 +5,7 @@ import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
 import type { Booking } from '@/lib/api';
 import { PressableScale } from '@/components/pressable-scale';
+import { PromptModal } from '@/components/prompt-modal';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -19,18 +20,18 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const userId = user?.id;
-  const userRole = 'client';
+  const [promptVisible, setPromptVisible] = useState(false);
+  const [promptType, setPromptType] = useState<'review' | 'report'>('review');
+  const [promptBooking, setPromptBooking] = useState<Booking | null>(null);
 
   const fetchBookings = useCallback(async () => {
-    if (!userId) return;
     try {
-      const data = await api.getBookings(userId, userRole);
+      const data = await api.getBookings();
       setBookings(data);
     } catch (e) {
       console.error('Failed to fetch bookings', e);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     fetchBookings().finally(() => setLoading(false));
@@ -64,38 +65,58 @@ export default function BookingsScreen() {
   };
 
   const handleReview = (booking: Booking) => {
-    Alert.alert('Leave a Review', 'Rating (1-5):', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Submit',
-        onPress: () => {
-          Alert.prompt?.('Rating', 'Enter rating 1-5', async (ratingStr) => {
-            const rating = parseInt(ratingStr);
-            if (isNaN(rating) || rating < 1 || rating > 5) {
-              Alert.alert('Error', 'Rating must be 1-5');
-              return;
-            }
-            try {
-              await api.submitReview({
-                booking_id: booking.id,
-                client_id: userId!,
-                worker_id: 0,
-                rating,
-              });
-              showToast('Review submitted!', 'success');
-              fetchBookings();
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
-            }
-          });
-        },
-      },
-    ]);
+    setPromptType('review');
+    setPromptBooking(booking);
+    setPromptVisible(true);
   };
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'confirmed': return { badge: styles.activeBadge, text: styles.activeText, label: 'Active' };
+  const handleReport = (booking: Booking) => {
+    setPromptType('report');
+    setPromptBooking(booking);
+    setPromptVisible(true);
+  };
+
+  const handlePromptSubmit = async (value: string) => {
+    const booking = promptBooking;
+    if (!booking) return;
+    if (promptType === 'review') {
+      const rating = parseInt(value);
+      if (isNaN(rating) || rating < 1 || rating > 5) {
+        Alert.alert('Error', 'Rating must be 1-5');
+        return;
+      }
+      try {
+        await api.submitReview({
+          booking_id: booking.id,
+          client_id: user!.id,
+          worker_id: booking.worker_id,
+          rating,
+        });
+        showToast('Review submitted!', 'success');
+        fetchBookings();
+      } catch (e: any) {
+        Alert.alert('Error', e.message);
+      }
+    } else {
+      if (value.trim().length < 10) {
+        Alert.alert('Error', 'Please provide at least 10 characters.');
+        return;
+      }
+      try {
+        await api.submitDispute({ booking_id: booking.id, reason: value.trim() });
+        showToast('Report submitted. We will review it.', 'success');
+        fetchBookings();
+      } catch (e: any) {
+        Alert.alert('Error', e.message);
+      }
+    }
+  };
+
+  const getStatusStyle = (booking: Booking) => {
+    if (booking.status === 'in_progress' && booking.completion_status?.is_pending) {
+      return { badge: styles.pendingBadge, text: styles.pendingText, label: 'Awaiting Confirmation' };
+    }
+    switch (booking.status) {
       case 'in_progress': return { badge: styles.activeBadge, text: styles.activeText, label: 'In Progress' };
       case 'completed': return { badge: styles.doneBadge, text: styles.doneText, label: 'Done' };
       case 'cancelled': return { badge: styles.cancelledBadge, text: styles.cancelledText, label: 'Cancelled' };
@@ -106,21 +127,82 @@ export default function BookingsScreen() {
   const handleAction = (booking: Booking) => {
     if (booking.status === 'completed') {
       handleReview(booking);
-    } else if (booking.status === 'pending') {
+    } else if (booking.status === 'new' || booking.status === 'accepted') {
       handleCancel(booking);
-    } else if (booking.status === 'confirmed' || booking.status === 'in_progress') {
-      showToast('Contact your provider for updates', 'info');
+    } else if (booking.status === 'in_progress') {
+      // Handle two-sided completion for in_progress bookings
+      if (booking.completion_status?.is_pending) {
+        // Completion already requested
+        if (booking.completion_status.pending_from === 'client') {
+          // Client already marked complete, awaiting worker
+          Alert.alert('Awaiting Confirmation', 'Waiting for worker to confirm job completion...');
+        } else {
+          // Worker marked complete, client needs to confirm
+          Alert.alert(
+            'Confirm Completion',
+            'Worker has confirmed the job is complete. Do you agree?',
+            [
+              { text: 'No', style: 'cancel' },
+              {
+                text: 'Yes, Confirm',
+                onPress: async () => {
+                  try {
+                    await api.confirmBookingCompletion(booking.id);
+                    showToast('Job completion confirmed!', 'success');
+                    fetchBookings();
+                  } catch (e: any) {
+                    Alert.alert('Error', e.message);
+                  }
+                },
+              },
+            ]
+          );
+        }
+      } else {
+        // No completion request yet, client initiating
+        Alert.alert(
+          'Mark Job Complete',
+          'Once you mark this complete, the worker will need to confirm. Continue?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Mark Complete',
+              onPress: async () => {
+                try {
+                  await api.markBookingComplete(booking.id);
+                  showToast('Job marked complete. Awaiting worker confirmation.', 'success');
+                  fetchBookings();
+                } catch (e: any) {
+                  Alert.alert('Error', e.message);
+                }
+              },
+            },
+          ]
+        );
+      }
     }
   };
 
-  const getActionLabel = (status: string) => {
-    switch (status) {
-      case 'completed': return 'Leave Review';
-      case 'cancelled': return '';
-      case 'pending': return 'Cancel';
-      case 'confirmed': return 'View';
-      case 'in_progress': return 'View';
-      default: return 'View';
+  const getActionLabel = (booking: Booking) => {
+    switch (booking.status) {
+      case 'completed':
+        return 'Leave Review';
+      case 'cancelled':
+        return '';
+      case 'new':
+        return 'Cancel';
+      case 'accepted':
+        return 'Cancel';
+      case 'in_progress':
+        // Show different label based on completion status
+        if (booking.completion_status?.is_pending) {
+          return booking.completion_status.pending_from === 'client'
+            ? 'Awaiting Confirmation'
+            : 'Confirm Complete';
+        }
+        return 'Mark Complete';
+      default:
+        return 'View';
     }
   };
 
@@ -160,8 +242,8 @@ export default function BookingsScreen() {
           </View>
         ) : (
           filtered.map((booking) => {
-            const sb = getStatusStyle(booking.status);
-            const actionLabel = getActionLabel(booking.status);
+            const sb = getStatusStyle(booking);
+            const actionLabel = getActionLabel(booking);
             return (
               <View key={booking.id} style={styles.card}>
                 <View style={styles.cardTop}>
@@ -196,12 +278,29 @@ export default function BookingsScreen() {
                     <Text style={styles.cardActionText}>{actionLabel}</Text>
                   </PressableScale>
                 ) : null}
+                {booking.status === 'completed' && (
+                  <PressableScale style={styles.reportBtn} onPress={() => handleReport(booking)}>
+                    <Ionicons name="flag-outline" size={14} color={Colors.error} />
+                    <Text style={styles.reportText}>Report</Text>
+                  </PressableScale>
+                )}
               </View>
             );
           })
         )}
         <View style={{ height: 16 }} />
       </ScrollView>
+
+      <PromptModal
+        visible={promptVisible}
+        title={promptType === 'review' ? 'Leave a Review' : 'Report Worker'}
+        message={promptType === 'review' ? 'Enter a rating from 1 to 5' : 'Describe what went wrong (min 10 characters)'}
+        placeholder={promptType === 'review' ? 'Rating (1-5)' : 'Describe the issue...'}
+        submitLabel={promptType === 'review' ? 'Submit Review' : 'Submit Report'}
+        keyboardType={promptType === 'review' ? 'numeric' : 'default'}
+        onSubmit={handlePromptSubmit}
+        onCancel={() => setPromptVisible(false)}
+      />
     </View>
   );
 }
@@ -241,4 +340,6 @@ const styles = StyleSheet.create({
   detailText: { fontSize: 14, color: Colors.textSecondary },
   cardAction: { borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: Colors.primary },
   cardActionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  reportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, marginTop: 4 },
+  reportText: { fontSize: 13, fontWeight: '500', color: Colors.error },
 });

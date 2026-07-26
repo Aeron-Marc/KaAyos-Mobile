@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, Text, View, Alert } from 'react-native';
+import { StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, Text, View, Alert, Image } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { PressableScale } from '@/components/pressable-scale';
@@ -24,19 +24,20 @@ export default function LoginScreen() {
     try {
       const response = await api.login(email.trim(), password.trim());
       if (response.success) {
-        signIn(response.user);
+        signIn(response.user, response.token);
+        setLoading(false);
         const userRole = response.user.role;
         if (userRole === 'worker') {
           router.replace('/(tabs-provider)' as any);
         } else {
           router.replace('/(tabs)');
         }
+        return;
       }
     } catch (error: any) {
       Alert.alert('Login Failed', error.message || 'Invalid email or password.');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
@@ -45,11 +46,7 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.container}>
             <View style={styles.header}>
-              <View style={styles.logo}>
-                <Text style={styles.logoText}>K</Text>
-              </View>
-              <Text style={styles.appName}>KaAyos</Text>
-              <Text style={styles.tagline}>Welcome back</Text>
+              <Image source={require('@/assets/images/KaAyos_Logo_Mobile.png')} style={styles.logoImg} />
             </View>
 
             <View style={styles.roleToggle}>
@@ -57,7 +54,7 @@ export default function LoginScreen() {
                 style={[styles.roleOption, role === 'homeowner' && styles.roleOptionActive]}
                 onPress={() => setRole('homeowner')}
               >
-                <Text style={[styles.roleText, role === 'homeowner' && styles.roleTextActive]}>Homeowner</Text>
+                <Text style={[styles.roleText, role === 'homeowner' && styles.roleTextActive]}>Client</Text>
               </PressableScale>
               <PressableScale
                 style={[styles.roleOption, role === 'provider' && styles.roleOptionActive]}
@@ -94,9 +91,7 @@ export default function LoginScreen() {
               </View>
 
               <PressableScale haptics style={styles.button} onPress={handleSignIn} disabled={loading}>
-                <Text style={styles.buttonText}>
-                  {loading ? 'Signing in...' : role === 'provider' ? 'Sign In as Provider' : 'Sign In'}
-                </Text>
+                <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
               </PressableScale>
 
               <View style={styles.footer}>
@@ -121,15 +116,12 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center' },
   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
   header: { alignItems: 'center', marginBottom: 32 },
+  logoImg: { width: 160, height: 160, marginBottom: 24 },
   roleToggle: { flexDirection: 'row', marginHorizontal: 28, marginBottom: 24, borderRadius: 12, backgroundColor: Colors.surface, padding: 4 },
   roleOption: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   roleOptionActive: { backgroundColor: Colors.primary },
   roleText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
   roleTextActive: { color: '#fff' },
-  logo: { width: 56, height: 56, borderRadius: 16, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  logoText: { color: '#fff', fontSize: 28, fontWeight: '700', fontFamily: 'monospace' },
-  appName: { fontSize: 30, fontWeight: '700', color: Colors.text, marginBottom: 6 },
-  tagline: { fontSize: 16, color: Colors.textSecondary },
   form: { gap: 20 },
   field: { gap: 8 },
   label: { fontSize: 14, fontWeight: '600', color: Colors.text },

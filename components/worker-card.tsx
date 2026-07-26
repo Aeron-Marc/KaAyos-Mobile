@@ -12,13 +12,16 @@ export type WorkerCardData = {
   reviews: number;
   city: string | null;
   verified: boolean;
+  hourly_rate: number | null;
   skills: string[];
-  services: { name: string; price: number | null }[];
+  services: { name: string; price: number | null; base_price?: number | null }[];
 };
 
 export function WorkerCard({ worker, onPress }: { worker: WorkerCardData; onPress: () => void }) {
-  const prices = worker.services.map(s => s.price).filter((p): p is number => p !== null);
-  const minPrice = prices.length > 0 ? Math.min(...prices) : null;
+  const prices = worker.services
+    .map(s => s.price ?? s.base_price ?? null)
+    .filter((p): p is number => p !== null && p !== undefined);
+  const minPrice = prices.length > 0 ? Math.min(...prices) : worker.hourly_rate;
 
   return (
     <PressableScale onPress={onPress} style={styles.card}>

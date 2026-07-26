@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, Switch, Platform } from 'react-native';
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -24,7 +25,7 @@ export default function ProviderProfileScreen() {
     try {
       const [data, profileData] = await Promise.all([
         api.getWorkerDetail(workerId),
-        api.getProfile(workerId),
+        api.getProfile(),
       ]);
       setWorker(data);
       setProfile(profileData.user);
@@ -42,6 +43,48 @@ export default function ProviderProfileScreen() {
     await fetchProfile();
     setRefreshing(false);
   }, [fetchProfile]);
+
+  const [toggling, setToggling] = useState<number | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  const handleToggleService = useCallback(async (serviceId: number, current: number | boolean) => {
+    setToggling(serviceId);
+    try {
+      const res = await api.toggleWorkerService(serviceId, !current);
+      if (res.success) {
+        showToast(`Service ${!current ? 'enabled' : 'disabled'}`, 'success');
+        fetchProfile();
+      } else {
+        showToast(res.msg || 'Failed to toggle', 'error');
+      }
+    } catch {
+      showToast('Network error', 'error');
+    } finally {
+      setToggling(null);
+    }
+  }, [fetchProfile, showToast]);
+
+  const handleShareLocation = useCallback(async () => {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Location permission denied', 'error');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const res = await api.updateWorkerLocation(pos.coords.latitude, pos.coords.longitude);
+      if (res.success) {
+        showToast('Location shared', 'success');
+      } else {
+        showToast(res.msg || 'Failed to update location', 'error');
+      }
+    } catch {
+      showToast('Could not get location', 'error');
+    } finally {
+      setLocating(false);
+    }
+  }, [showToast]);
 
   return (
     <View style={styles.safe}>
@@ -137,16 +180,38 @@ export default function ProviderProfileScreen() {
             {worker.services && worker.services.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Services Offered</Text>
-                <View style={styles.servicesList}>
-                  {worker.services.filter(s => s.is_available).map((svc) => (
-                    <View key={svc.id} style={styles.serviceBadge}>
-                      <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                {worker.services.map((svc) => (
+                  <View key={svc.id} style={styles.serviceToggleRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons
+                        name={svc.is_available ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={16}
+                        color={svc.is_available ? Colors.success : Colors.icon}
+                      />
                       <Text style={styles.serviceText}>{svc.name}</Text>
                     </View>
-                  ))}
-                </View>
+                    <Switch
+                      value={!!svc.is_available}
+                      onValueChange={() => handleToggleService(svc.id, svc.is_available)}
+                      disabled={toggling === svc.id}
+                      trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+                      thumbColor={svc.is_available ? Colors.primary : Colors.icon}
+                    />
+                  </View>
+                ))}
               </View>
             )}
+
+            <PressableScale
+              onPress={handleShareLocation}
+              disabled={locating}
+              style={styles.locationBtn}
+            >
+              <Ionicons name="locate-outline" size={18} color="#fff" />
+              <Text style={styles.locationBtnText}>
+                {locating ? 'Getting location...' : 'Share My Location'}
+              </Text>
+            </PressableScale>
 
             {worker.portfolio && worker.portfolio.length > 0 && (
               <View style={styles.section}>
@@ -218,20 +283,25 @@ export default function ProviderProfileScreen() {
               <Ionicons name="chevron-forward" size={18} color={Colors.icon} />
             </PressableScale>
 
-            <PressableScale
-              onPress={() => {
-                signOut();
-                router.replace('/auth/login');
-              }}
-              style={styles.logoutBtn}
-            >
-              <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-              <Text style={styles.logoutText}>Sign Out</Text>
-            </PressableScale>
           </>
         ) : (
-          <Text style={styles.loadingText}>Failed to load profile</Text>
+          <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+            <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
+            <Text style={styles.loadingText}>Failed to load profile</Text>
+          </View>
         )}
+
+        <PressableScale
+          onPress={() => {
+            signOut();
+            router.replace('/auth/login');
+          }}
+          style={styles.logoutBtn}
+        >
+          <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </PressableScale>
+
         <View style={{ height: 16 }} />
       </ScrollView>
     </View>
@@ -269,6 +339,9 @@ const styles = StyleSheet.create({
   servicesList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.primaryLight },
   serviceText: { fontSize: 13, fontWeight: '500', color: Colors.text },
+  serviceToggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  locationBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginBottom: 12 },
+  locationBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   portfolioGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   portfolioItem: { width: '47%', borderRadius: 12, overflow: 'hidden', backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   portfolioPlaceholder: { height: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface },

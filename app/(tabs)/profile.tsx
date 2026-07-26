@@ -27,7 +27,7 @@ export default function ProfileScreen() {
   const fetchProfile = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await api.getProfile(userId);
+      const res = await api.getProfile();
       setUser(res.user);
       setFirstName(res.user.first_name || '');
       setLastName(res.user.last_name || '');
@@ -52,7 +52,7 @@ export default function ProfileScreen() {
     if (!userId) return;
     setSaving(true);
     try {
-      await api.updateProfile(userId, {
+      await api.updateProfile({
         first_name: firstName,
         last_name: lastName,
         phone,
@@ -129,21 +129,25 @@ export default function ProfileScreen() {
             <PressableScale haptics style={styles.saveBtn} onPress={handleSave} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save Changes</Text>}
             </PressableScale>
-
-            <PressableScale
-              onPress={() => {
-                signOut();
-                router.replace('/auth/login');
-              }}
-              style={styles.logoutBtn}
-            >
-              <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-              <Text style={styles.logoutText}>Sign Out</Text>
-            </PressableScale>
           </>
         ) : (
-          <Text style={styles.loadingText}>Failed to load profile</Text>
+          <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+            <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
+            <Text style={styles.loadingText}>Failed to load profile</Text>
+          </View>
         )}
+
+        <PressableScale
+          onPress={() => {
+            signOut();
+            router.replace('/auth/login');
+          }}
+          style={styles.logoutBtn}
+        >
+          <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </PressableScale>
+
         <View style={{ height: 16 }} />
       </ScrollView>
     </View>

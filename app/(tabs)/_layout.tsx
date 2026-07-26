@@ -5,6 +5,7 @@ import { StyleSheet, Platform } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { SwipeableTabContainer } from '@/components/swipeable-tabs';
 import { AnimatedTabIcon } from '@/components/animated-tab-icon';
+import { FloatingStar } from '@/components/floating-star';
 
 export default function TabLayout() {
   return (
@@ -21,6 +22,10 @@ export default function TabLayout() {
             borderTopWidth: 1,
             paddingBottom: 4,
             height: 56,
+            elevation: 0,
+            shadowOpacity: 0,
+            shadowOffset: { width: 0, height: 0 },
+            shadowRadius: 0,
           },
           tabBarLabelStyle: {
             fontSize: 11,
@@ -66,6 +71,7 @@ export default function TabLayout() {
         />
       </Tabs>
       </SwipeableTabContainer>
+      <FloatingStar />
     </SafeAreaView>
   );
 }

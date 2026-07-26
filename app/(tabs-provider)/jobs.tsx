@@ -8,7 +8,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
-const segments = ['All', 'pending', 'confirmed', 'in_progress', 'completed'] as const;
+const segments = ['All', 'new', 'accepted', 'in_progress', 'completed'] as const;
 type Segment = typeof segments[number];
 
 export default function JobsScreen() {
@@ -24,7 +24,7 @@ export default function JobsScreen() {
   const fetchJobs = useCallback(async () => {
     if (!workerId) return;
     try {
-      const data = await api.getBookings(workerId, 'worker');
+      const data = await api.getBookings();
       setJobs(data);
     } catch (e) {
       console.error('Failed to fetch jobs', e);
@@ -45,45 +45,121 @@ export default function JobsScreen() {
 
   const handleAction = async (job: Booking) => {
     switch (job.status) {
-      case 'pending':
+      case 'new':
         try {
-          await api.updateBookingStatus(job.id, 'confirmed');
+          await api.updateBookingStatus(job.id, 'accepted');
+          showToast('Job accepted!', 'success');
+          fetchJobs();
+        } catch (e: any) { Alert.alert('Error', e.message); }
+        break;
+      case 'accepted':
+        try {
+          await api.updateBookingStatus(job.id, 'en_route');
+          showToast('Marked as en route', 'success');
+          fetchJobs();
+        } catch (e: any) { Alert.alert('Error', e.message); }
+        break;
+      case 'en_route':
+        try {
+          await api.updateBookingStatus(job.id, 'in_progress');
           showToast('Job started', 'success');
           fetchJobs();
         } catch (e: any) { Alert.alert('Error', e.message); }
         break;
-      case 'confirmed':
       case 'in_progress':
-        try {
-          const nextStatus = job.status === 'confirmed' ? 'in_progress' : 'completed';
-          await api.updateBookingStatus(job.id, nextStatus);
-          showToast(nextStatus === 'completed' ? 'Marked as completed' : 'In progress', 'success');
-          fetchJobs();
-        } catch (e: any) { Alert.alert('Error', e.message); }
-        break;
-      case 'completed':
-        showToast('Invoice sent to client', 'success');
+        // Handle two-sided completion
+        if (job.completion_status?.is_pending) {
+          // Completion already requested, check who needs to confirm
+          if (job.completion_status.pending_from === 'worker') {
+            // Client marked complete, worker needs to confirm
+            Alert.alert(
+              'Confirm Completion',
+              'Client has confirmed the job is complete. Do you agree?',
+              [
+                { text: 'No', style: 'cancel' },
+                {
+                  text: 'Yes, Confirm',
+                  onPress: async () => {
+                    try {
+                      await api.confirmBookingCompletion(job.id);
+                      showToast('Job completion confirmed!', 'success');
+                      fetchJobs();
+                    } catch (e: any) { Alert.alert('Error', e.message); }
+                  },
+                },
+              ]
+            );
+          } else {
+            // Worker already marked complete, awaiting client confirmation
+            Alert.alert('Awaiting Confirmation', 'Waiting for client to confirm job completion...');
+          }
+        } else {
+          // No completion request yet, worker initiating
+          Alert.alert(
+            'Mark Job Complete',
+            'Once you mark this complete, the client will need to confirm. Continue?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Mark Complete',
+                onPress: async () => {
+                  try {
+                    await api.markBookingComplete(job.id);
+                    showToast('Job marked complete. Awaiting client confirmation.', 'success');
+                    fetchJobs();
+                  } catch (e: any) { Alert.alert('Error', e.message); }
+                },
+              },
+            ]
+          );
+        }
         break;
     }
   };
 
-  const getActionLabel = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Accept Job';
-      case 'confirmed': return 'Start Job';
-      case 'in_progress': return 'Complete';
-      case 'completed': return 'Send Invoice';
-      default: return 'View';
+  const getActionLabel = (job: Booking) => {
+    switch (job.status) {
+      case 'new': return 'Accept';
+      case 'accepted': return 'En Route';
+      case 'en_route': return 'Start Job';
+      case 'in_progress':
+        // Show different label based on completion status
+        if (job.completion_status?.is_pending) {
+          return job.completion_status.pending_from === 'worker'
+            ? 'Confirm Complete'
+            : 'Awaiting Confirmation';
+        }
+        return 'Complete';
+      default: return null;
     }
   };
 
-  const statusBadgeStyle = (status: string) => {
-    switch (status) {
-      case 'confirmed': return { badge: styles.activeBadge, text: styles.activeText };
+  const statusBadgeStyle = (job: Booking) => {
+    if (job.status === 'in_progress' && job.completion_status?.is_pending) {
+      return { badge: styles.pendingBadge, text: styles.pendingText };
+    }
+    switch (job.status) {
+      case 'accepted': return { badge: styles.activeBadge, text: styles.activeText };
+      case 'en_route': return { badge: styles.activeBadge, text: styles.activeText };
       case 'in_progress': return { badge: styles.activeBadge, text: styles.activeText };
       case 'completed': return { badge: styles.completedBadge, text: styles.completedText };
       case 'cancelled': return { badge: styles.cancelledBadge, text: styles.cancelledText };
       default: return { badge: styles.pendingBadge, text: styles.pendingText };
+    }
+  };
+
+  const displayLabel = (job: Booking) => {
+    if (job.status === 'in_progress' && job.completion_status?.is_pending) {
+      return 'Awaiting Confirmation';
+    }
+    switch (job.status) {
+      case 'new': return 'New';
+      case 'accepted': return 'Accepted';
+      case 'en_route': return 'En Route';
+      case 'in_progress': return 'In Progress';
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      default: return job.status;
     }
   };
 
@@ -126,7 +202,8 @@ export default function JobsScreen() {
           </View>
         ) : (
           filtered.map((job) => {
-            const sb = statusBadgeStyle(job.status);
+            const sb = statusBadgeStyle(job);
+            const actionLabel = getActionLabel(job);
             return (
               <View key={job.id} style={styles.card}>
                 <View style={styles.cardTop}>
@@ -135,9 +212,7 @@ export default function JobsScreen() {
                     <Text style={styles.clientName}>{job.other_name}</Text>
                   </View>
                   <View style={[styles.badge, sb.badge]}>
-                    <Text style={[styles.badgeText, sb.text]}>
-                      {job.status === 'confirmed' ? 'Active' : job.status.charAt(0).toUpperCase() + job.status.slice(1)}
-                    </Text>
+                    <Text style={[styles.badgeText, sb.text]}>{displayLabel(job)}</Text>
                   </View>
                 </View>
 
@@ -158,9 +233,11 @@ export default function JobsScreen() {
                   )}
                 </View>
 
-                <PressableScale haptics style={styles.cardAction} onPress={() => handleAction(job)}>
-                  <Text style={styles.cardActionText}>{getActionLabel(job.status)}</Text>
-                </PressableScale>
+                {actionLabel && (
+                  <PressableScale haptics style={styles.cardAction} onPress={() => handleAction(job)}>
+                    <Text style={styles.cardActionText}>{actionLabel}</Text>
+                  </PressableScale>
+                )}
               </View>
             );
           })
@@ -207,3 +284,4 @@ const styles = StyleSheet.create({
   cardAction: { borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: Colors.primary },
   cardActionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
+

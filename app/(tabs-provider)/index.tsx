@@ -1,5 +1,6 @@
 ﻿import { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -8,29 +9,33 @@ import { PressableScale } from '@/components/pressable-scale';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
-const dayNames: Record<string, string> = {
-  '0': 'Sun', '1': 'Mon', '2': 'Tue', '3': 'Wed', '4': 'Thu', '5': 'Fri', '6': 'Sat',
-};
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function ProviderDashboardScreen() {
   const { user } = useAuth();
   const [earnings, setEarnings] = useState<Earnings | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [rating, setRating] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
   const workerId = user?.id;
+  const firstName = (user?.name || 'Worker').split(' ')[0];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
 
   const fetchData = useCallback(async () => {
     if (!workerId) return;
     try {
-      const [earnRes, bookRes] = await Promise.all([
-        api.getEarnings(workerId),
-        api.getBookings(workerId, 'worker'),
+      const [earnRes, bookRes, workerData] = await Promise.all([
+        api.getEarnings(),
+        api.getBookings(),
+        api.getWorkerDetail(workerId),
       ]);
       setEarnings(earnRes);
-      setBookings(bookRes.filter(b => b.status === 'pending'));
+      setBookings(bookRes);
+      setRating(workerData.rating || 0);
     } catch (e) {
       console.error('Failed to fetch dashboard data', e);
     }
@@ -46,9 +51,16 @@ export default function ProviderDashboardScreen() {
     setRefreshing(false);
   }, [fetchData]);
 
+  const activeJobs = bookings.filter(b => b.status === 'accepted' || b.status === 'en_route' || b.status === 'in_progress').length;
+  const completedJobs = earnings?.stats?.completed_jobs || 0;
+  const earningsThisWeek = (earnings?.weekly || []).reduce((sum, d) => sum + Number(d.earnings), 0);
+
+  const recentRequests = bookings.filter(b => b.status === 'new').slice(0, 3);
+  const upcomingSchedule = bookings.filter(b => b.status === 'accepted' || b.status === 'en_route' || b.status === 'in_progress').slice(0, 2);
+
   const handleAccept = async (bookingId: number) => {
     try {
-      await api.updateBookingStatus(bookingId, 'confirmed');
+      await api.updateBookingStatus(bookingId, 'accepted');
       showToast('Job accepted!', 'success');
       fetchData();
     } catch (e: any) {
@@ -66,169 +78,272 @@ export default function ProviderDashboardScreen() {
     }
   };
 
-  const weeklyData = earnings?.weekly?.map(w => {
-    const d = new Date(w.date);
-    return { name: dayNames[String(d.getDay())] || '?', earnings: Number(w.earnings) };
-  }) || [];
+  const today = new Date();
+  const todayStr = `${MONTHS[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
 
   return (
-    <View style={styles.safe}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Your Dashboard</Text>
-          <Text style={styles.title}>Dashboard</Text>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
+    >
+      <View style={styles.hero}>
+        <View style={styles.heroTop}>
+          <View>
+            <Text style={styles.heroDate}>{todayStr}</Text>
+            <Text style={styles.heroGreeting}>Good {greeting}, {firstName}</Text>
+          </View>
+          <PressableScale style={styles.avatarCircle} onPress={() => router.push('/(tabs-provider)/profile')}>
+            <Text style={styles.avatarLetter}>{firstName.charAt(0)}</Text>
+          </PressableScale>
         </View>
-        <View style={styles.avatarSmall}>
-          <Text style={styles.avatarText}>P</Text>
+
+        <View style={styles.earningsCard}>
+          <View style={styles.earningsTop}>
+            <Text style={styles.earningsLabel}>Earnings This Week</Text>
+            <Ionicons name="trending-up" size={18} color="#059669" />
+          </View>
+          <Text style={styles.earningsValue}>PHP {earningsThisWeek.toLocaleString()}</Text>
+          <View style={styles.earningsMeta}>
+            <View style={styles.earningsMetaItem}>
+              <Ionicons name="briefcase-outline" size={13} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.earningsMetaText}>{activeJobs} active</Text>
+            </View>
+            <View style={styles.earningsDot} />
+            <View style={styles.earningsMetaItem}>
+              <Ionicons name="checkmark-circle-outline" size={13} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.earningsMetaText}>{completedJobs} completed</Text>
+            </View>
+            <View style={styles.earningsDot} />
+            <View style={styles.earningsMetaItem}>
+              <Ionicons name="star-outline" size={13} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.earningsMetaText}>{rating} ★</Text>
+            </View>
+          </View>
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-      >
-        {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
-        ) : (
-          <>
-            <View style={styles.statsRow}>
-              {[
-                { label: 'Earnings', value: `PHP ${(earnings?.stats?.total_earnings || 0).toLocaleString()}`, icon: 'wallet-outline' as const, color: '#059669' },
-                { label: 'Jobs Done', value: `${earnings?.stats?.completed_jobs || 0}`, icon: 'checkmark-done-outline' as const, color: '#2563eb' },
-                { label: 'Total Jobs', value: `${earnings?.stats?.total_jobs || 0}`, icon: 'briefcase-outline' as const, color: '#d97706' },
-              ].map((stat) => (
-                <View key={stat.label} style={styles.statCard}>
-                  <View style={[styles.statIcon, { backgroundColor: stat.color + '15' }]}>
-                    <Ionicons name={stat.icon} size={18} color={stat.color} />
-                  </View>
-                  <Text style={styles.statValue}>{stat.value}</Text>
-                  <Text style={styles.statLabel}>{stat.label}</Text>
-                </View>
-              ))}
-            </View>
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>Job Requests</Text>
+        <PressableScale onPress={() => router.push('/(tabs-provider)/jobs')}>
+          <Text style={styles.sectionAction}>View all</Text>
+        </PressableScale>
+      </View>
 
-            {weeklyData.length > 0 && (
-              <View style={styles.chartCard}>
-                <View style={styles.chartHeader}>
-                  <Text style={styles.sectionTitle}>Weekly Earnings</Text>
-                  <Text style={styles.chartTotal}>
-                    PHP {weeklyData.reduce((s, d) => s + d.earnings, 0).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.chart}>
-                  {weeklyData.map((day) => {
-                    const maxEarning = Math.max(...weeklyData.map(d => d.earnings), 1);
-                    return (
-                      <View key={day.name} style={styles.chartItem}>
-                        <View style={[styles.bar, { height: Math.max((day.earnings / maxEarning) * 100, 6) }]} />
-                        <Text style={styles.chartDay}>{day.name}</Text>
-                      </View>
-                    );
-                  })}
+      {recentRequests.length === 0 ? (
+        <View style={styles.empty}>
+          <Ionicons name="briefcase-outline" size={40} color={Colors.icon} />
+          <Text style={styles.emptyText}>No pending requests</Text>
+        </View>
+      ) : (
+        recentRequests.map((job) => (
+          <View key={job.id} style={styles.jobCard}>
+            <View style={styles.jobCardLeft}>
+              <View style={styles.jobIcon}>
+                <Ionicons name="hammer-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.jobInfo}>
+                <Text style={styles.jobService}>{job.service_category}</Text>
+                <Text style={styles.jobClient}>{job.other_name}</Text>
+                <View style={styles.jobMeta}>
+                  <Ionicons name="time-outline" size={12} color={Colors.textMuted} />
+                  <Text style={styles.jobMetaText}>{new Date(job.scheduled_at).toLocaleDateString()}</Text>
+                  {job.price && (
+                    <>
+                      <Text style={styles.jobMetaSep}>·</Text>
+                      <Text style={styles.jobMetaText}>PHP {job.price}</Text>
+                    </>
+                  )}
                 </View>
               </View>
-            )}
-
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionTitle}>Job Requests</Text>
             </View>
+            <View style={styles.jobActions}>
+              <PressableScale haptics style={styles.acceptBtn} onPress={() => handleAccept(job.id)}>
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              </PressableScale>
+              <PressableScale style={styles.declineBtn} onPress={() => handleDecline(job.id)}>
+                <Ionicons name="close" size={16} color={Colors.textSecondary} />
+              </PressableScale>
+            </View>
+          </View>
+        ))
+      )}
 
-            {bookings.length === 0 ? (
-              <View style={styles.empty}>
-                <Ionicons name="briefcase-outline" size={44} color={Colors.icon} />
-                <Text style={styles.emptyText}>No pending job requests</Text>
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>Upcoming</Text>
+        <PressableScale onPress={() => router.push('/(tabs-provider)/schedule')}>
+          <Text style={styles.sectionAction}>View all</Text>
+        </PressableScale>
+      </View>
+
+      {upcomingSchedule.length === 0 ? (
+        <View style={styles.empty}>
+          <Ionicons name="calendar-outline" size={40} color={Colors.icon} />
+          <Text style={styles.emptyText}>No upcoming jobs</Text>
+        </View>
+      ) : (
+        upcomingSchedule.map((item, i) => {
+          const colors: Record<string, { bg: string; text: string; label: string }> = {
+            accepted: { bg: '#f0fdf4', text: '#16a34a', label: 'Accepted' },
+            en_route: { bg: Colors.primaryLight, text: Colors.primary, label: 'En Route' },
+            in_progress: { bg: Colors.primaryLight, text: Colors.primary, label: 'In Progress' },
+          };
+          const sb = colors[item.status] || { bg: Colors.warningLight, text: Colors.warning, label: item.status };
+          return (
+            <View key={item.id} style={styles.schedCard}>
+              <View style={styles.schedTimeline}>
+                <View style={[styles.schedDot, i === 0 && styles.schedDotActive]} />
+                {i < upcomingSchedule.length - 1 && <View style={styles.schedLine} />}
               </View>
-            ) : (
-              bookings.map((job) => (
-                <View key={job.id} style={styles.jobCard}>
-                  <View style={styles.jobTop}>
-                    <View style={styles.jobTopLeft}>
-                      <Text style={styles.jobService}>{job.service_category}</Text>
-                      <Text style={styles.jobClient}>{job.other_name}</Text>
-                    </View>
-                    <View style={styles.jobStatus}>
-                      <Text style={styles.jobStatusText}>New</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.jobDetails}>
-                    <View style={styles.detailRow}>
-                      <Ionicons name="time-outline" size={14} color={Colors.textMuted} />
-                      <Text style={styles.detailText}>{new Date(job.scheduled_at).toLocaleDateString()}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Ionicons name="location-outline" size={14} color={Colors.textMuted} />
-                      <Text style={styles.detailText}>{job.address}</Text>
-                    </View>
-                    {job.price && (
-                      <View style={styles.detailRow}>
-                        <Ionicons name="wallet-outline" size={14} color={Colors.textMuted} />
-                        <Text style={styles.detailText}>PHP {job.price}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.jobActions}>
-                    <PressableScale haptics style={styles.acceptBtn} onPress={() => handleAccept(job.id)}>
-                      <Ionicons name="checkmark" size={16} color="#fff" />
-                      <Text style={styles.acceptBtnText}>Accept</Text>
-                    </PressableScale>
-                    <PressableScale style={styles.declineBtn} onPress={() => handleDecline(job.id)}>
-                      <Ionicons name="close" size={16} color={Colors.textSecondary} />
-                      <Text style={styles.declineBtnText}>Decline</Text>
-                    </PressableScale>
+              <View style={styles.schedContent}>
+                <View style={styles.schedTop}>
+                  <Text style={styles.schedService}>{item.service_category}</Text>
+                  <View style={[styles.schedBadge, { backgroundColor: sb.bg }]}>
+                    <Text style={[styles.schedBadgeText, { color: sb.text }]}>{sb.label}</Text>
                   </View>
                 </View>
-              ))
-            )}
-          </>
-        )}
-        <View style={{ height: 16 }} />
-      </ScrollView>
-    </View>
+                <Text style={styles.schedPerson}>{item.other_name} · {new Date(item.scheduled_at).toLocaleDateString()}</Text>
+              </View>
+            </View>
+          );
+        })
+      )}
+      <View style={{ height: 24 }} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { paddingBottom: 24 },
-  loadingText: { textAlign: 'center', paddingVertical: 40, color: Colors.textSecondary },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  greeting: { fontSize: 14, fontWeight: '500', color: Colors.textSecondary, marginBottom: 4 },
-  title: { fontSize: 28, fontWeight: '700', color: Colors.text },
-  avatarSmall: { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 20, marginBottom: 20 },
-  statCard: { flex: 1, borderRadius: 16, padding: 16, backgroundColor: Colors.surface, alignItems: 'center', gap: 8 },
-  statIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  statLabel: { fontSize: 12, fontWeight: '500', color: Colors.textSecondary },
-  chartCard: { marginHorizontal: 20, borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 8 },
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  hero: {
+    backgroundColor: Colors.primary,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  heroDate: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.6)', marginBottom: 2 },
+  heroGreeting: { fontSize: 22, fontWeight: '700', color: '#fff' },
+  avatarCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetter: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  earningsCard: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 18,
+    padding: 20,
+  },
+  earningsTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  earningsLabel: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.7)' },
+  earningsValue: { fontSize: 32, fontWeight: '700', color: '#fff', marginBottom: 12 },
+  earningsMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  earningsMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  earningsMetaText: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  earningsDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)' },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  chartTotal: { fontSize: 20, fontWeight: '700', color: Colors.primary },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 110 },
-  chartItem: { flex: 1, alignItems: 'center', gap: 8 },
-  bar: { width: '60%', borderRadius: 6, backgroundColor: Colors.primary },
-  chartDay: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
   sectionAction: { fontSize: 14, fontWeight: '600', color: Colors.primary },
-  empty: { alignItems: 'center', paddingVertical: 40, gap: 12 },
-  emptyText: { fontSize: 16, color: Colors.textSecondary },
-  jobCard: { marginHorizontal: 20, borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 10 },
-  jobTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-  jobTopLeft: { flex: 1, marginRight: 12 },
-  jobService: { fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  jobClient: { fontSize: 14, color: Colors.textSecondary },
-  jobStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: Colors.warningLight },
-  jobStatusText: { color: Colors.warning, fontSize: 11, fontWeight: '600' },
-  jobDetails: { gap: 8, marginBottom: 16 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  detailText: { fontSize: 14, color: Colors.textSecondary },
-  jobActions: { flexDirection: 'row', gap: 10 },
-  acceptBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  acceptBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  declineBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  declineBtnText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
+  empty: { marginHorizontal: 20, alignItems: 'center', paddingVertical: 36, gap: 10, borderRadius: 16, backgroundColor: Colors.surface },
+  emptyText: { fontSize: 15, color: Colors.textSecondary },
+  jobCard: {
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: Colors.surface,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  jobCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  jobIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jobInfo: { flex: 1 },
+  jobService: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 2 },
+  jobClient: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
+  jobMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  jobMetaText: { fontSize: 12, color: Colors.textMuted },
+  jobMetaSep: { fontSize: 12, color: Colors.textMuted },
+  jobActions: { flexDirection: 'column', gap: 8, marginLeft: 12 },
+  acceptBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  schedCard: {
+    marginHorizontal: 20,
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  schedTimeline: { alignItems: 'center', width: 20, paddingTop: 4 },
+  schedDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.border,
+  },
+  schedDotActive: {
+    backgroundColor: Colors.primary,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  schedLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: Colors.border,
+    minHeight: 24,
+  },
+  schedContent: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginLeft: 12,
+    marginBottom: 8,
+  },
+  schedTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  schedService: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  schedBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 16 },
+  schedBadgeText: { fontSize: 11, fontWeight: '600' },
+  schedPerson: { fontSize: 13, color: Colors.textSecondary },
 });

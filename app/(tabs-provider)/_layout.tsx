@@ -5,7 +5,7 @@ import { Colors } from '@/constants/theme';
 import { SwipeableTabContainer } from '@/components/swipeable-tabs';
 import { AnimatedTabIcon } from '@/components/animated-tab-icon';
 
-const PROVIDER_TAB_ROUTES = ['index', 'jobs', 'messages', 'profile'];
+const PROVIDER_TAB_ROUTES = ['index', 'jobs', 'schedule', 'messages', 'profile'];
 
 export default function ProviderTabLayout() {
   return (
@@ -22,6 +22,10 @@ export default function ProviderTabLayout() {
               borderTopWidth: 1,
               paddingBottom: 4,
               height: 56,
+              elevation: 0,
+              shadowOpacity: 0,
+              shadowOffset: { width: 0, height: 0 },
+              shadowRadius: 0,
             },
             tabBarLabelStyle: {
               fontSize: 11,
@@ -44,6 +48,15 @@ export default function ProviderTabLayout() {
               title: 'Jobs',
               tabBarIcon: ({ focused, color }) => (
                 <AnimatedTabIcon name="briefcase-outline" focused={focused} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="schedule"
+            options={{
+              title: 'Schedule',
+              tabBarIcon: ({ focused, color }) => (
+                <AnimatedTabIcon name="calendar-outline" focused={focused} color={color} />
               ),
             }}
           />

@@ -88,7 +88,7 @@ export default function WorkerDetailScreen() {
             </View>
           )}
           <Text style={styles.name}>{worker.name}</Text>
-          <Text style={styles.category}>{worker.service_category || 'Service Provider'}</Text>
+          <Text style={styles.category}>{worker.category || 'Service Provider'}</Text>
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -120,8 +120,8 @@ export default function WorkerDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
           <Text style={styles.aboutText}>
-            {worker.service_category
-              ? `Experienced ${worker.service_category} service provider serving in ${worker.city || 'your area'}.`
+            {worker.category
+              ? `Experienced ${worker.category} service provider serving in ${worker.city || 'your area'}.`
               : 'Professional service provider ready to help you.'}
           </Text>
         </View>

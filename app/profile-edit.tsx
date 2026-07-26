@@ -2,6 +2,7 @@
 import { StyleSheet, ScrollView, TextInput, View, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { PressableScale } from '@/components/pressable-scale';
@@ -28,13 +29,14 @@ export default function ProfileEditScreen() {
   const [preferredHours, setPreferredHours] = useState('');
   const [yearsOfExperience, setYearsOfExperience] = useState('');
   const [serviceRadius, setServiceRadius] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   const userId = authUser?.id;
 
   useEffect(() => {
     if (!userId) return;
     Promise.all([
-      api.getProfile(userId),
+      api.getProfile(),
       api.getWorkerProfile(userId).catch(() => null),
     ]).then(([profileRes, wp]) => {
       const u = profileRes.user;
@@ -63,7 +65,7 @@ export default function ProfileEditScreen() {
     if (!userId) return;
     setSaving(true);
     try {
-      await api.updateProfile(userId, {
+      await api.updateProfile({
         first_name: firstName,
         last_name: lastName,
         phone,
@@ -115,9 +117,42 @@ export default function ProfileEditScreen() {
           <View style={styles.avatarLarge}>
             <Text style={styles.avatarText}>{firstName?.charAt(0) || ''}{lastName?.charAt(0) || ''}</Text>
           </View>
-          <PressableScale style={styles.uploadBtn} onPress={() => showToast('Photo upload coming soon', 'info')}>
-            <Ionicons name="camera-outline" size={16} color={Colors.primary} />
-            <Text style={styles.uploadText}>Upload Photo</Text>
+          <PressableScale style={styles.uploadBtn} onPress={async () => {
+            try {
+              const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (!perm.granted) {
+                showToast('Permission to access gallery is required', 'error');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              if (result.canceled || !result.assets?.length) return;
+              const uri = result.assets[0].uri;
+              setUploading(true);
+              const formData = new FormData();
+              formData.append('file', {
+                uri,
+                type: 'image/jpeg',
+                name: 'avatar.jpg',
+              } as any);
+              const res = await api.uploadAvatar(formData);
+              if (res.success) {
+                showToast('Photo uploaded', 'success');
+              } else {
+                showToast(res.msg || 'Upload failed', 'error');
+              }
+            } catch {
+              showToast('Upload failed', 'error');
+            } finally {
+              setUploading(false);
+            }
+          }} disabled={uploading}>
+            <Ionicons name={uploading ? 'hourglass-outline' : 'camera-outline'} size={16} color={Colors.primary} />
+            <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Upload Photo'}</Text>
           </PressableScale>
         </View>
 

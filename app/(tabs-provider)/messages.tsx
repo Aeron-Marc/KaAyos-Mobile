@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
 import type { Message } from '@/lib/api';
 import { PressableScale } from '@/components/pressable-scale';
-import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function ProviderMessagesScreen() {
@@ -22,12 +22,11 @@ export default function ProviderMessagesScreen() {
   }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { showToast } = useToast();
 
   const fetchMessages = useCallback(async () => {
     if (!workerId) return;
     try {
-      const msgs = await api.getMessages(workerId);
+      const msgs = await api.getMessages();
       const grouped = msgs.reduce<Record<number, { name: string; avatar: string | null; msgs: Message[] }>>((acc, m) => {
         const otherId = m.sender_id === workerId ? m.receiver_id : m.sender_id;
         const otherName = m.sender_id === workerId ? m.receiver_name : m.sender_name;
@@ -93,7 +92,7 @@ export default function ProviderMessagesScreen() {
             <PressableScale
               key={convo.id}
               style={styles.conversationCard}
-              onPress={() => showToast(`Chat with ${convo.name}`, 'info')}
+              onPress={() => router.push(`/chat/${convo.id}`)}
             >
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{convo.initials}</Text>
