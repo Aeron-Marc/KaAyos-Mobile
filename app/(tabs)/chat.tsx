@@ -1,5 +1,5 @@
 ﻿import { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
@@ -78,7 +78,7 @@ export default function ChatListScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
         ) : conversations.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="chatbubbles-outline" size={44} color={Colors.icon} />
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, color: Colors.textSecondary, marginTop: 2 },
   empty: { alignItems: 'center', paddingVertical: 80, gap: 12 },
   emptyText: { fontSize: 16, color: Colors.textSecondary },
-  conversationCard: { flexDirection: 'row', gap: 14, padding: 16, borderRadius: 16, backgroundColor: Colors.surface, marginBottom: 8, alignItems: 'center' },
+  conversationCard: { flexDirection: 'row', gap: 14, padding: 16, borderRadius: 16, backgroundColor: Colors.surface, marginBottom: 8, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   avatar: { width: 48, height: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   conversationInfo: { flex: 1, gap: 4 },

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, TextInput, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
@@ -86,7 +86,7 @@ export default function ProfileScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
         ) : user ? (
           <>
             <View style={styles.profileCard}>
@@ -160,20 +160,20 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '700', color: Colors.text },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
   loadingText: { textAlign: 'center', paddingVertical: 40, color: Colors.textSecondary },
-  profileCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 16, backgroundColor: Colors.surface, marginBottom: 12, gap: 16 },
-  avatar: { width: 52, height: 52, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  profileCard: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 16, backgroundColor: Colors.surface, marginBottom: 12, gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  avatar: { width: 56, height: 56, borderRadius: 16, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   profileInfo: { flex: 1 },
   profileName: { fontSize: 18, fontWeight: '700', color: Colors.text },
   profileRole: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   verifiedText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
-  formCard: { borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 12, gap: 20 },
-  field: { gap: 8 },
-  label: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  input: { height: 48, borderRadius: 10, paddingHorizontal: 16, fontSize: 15, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, color: Colors.text },
-  saveBtn: { borderRadius: 12, paddingVertical: 16, backgroundColor: Colors.primary, alignItems: 'center', marginBottom: 12 },
+  formCard: { borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 12, gap: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  field: { gap: 6 },
+  label: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  input: { height: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, color: Colors.text },
+  saveBtn: { borderRadius: 14, paddingVertical: 16, backgroundColor: Colors.primary, alignItems: 'center', marginBottom: 12, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
   saveText: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, paddingVertical: 14, marginTop: 4 },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, borderWidth: 1, borderColor: Colors.error, paddingVertical: 14, marginTop: 8, backgroundColor: '#fef2f2' },
   logoutText: { fontSize: 15, fontWeight: '600', color: Colors.error },
 });

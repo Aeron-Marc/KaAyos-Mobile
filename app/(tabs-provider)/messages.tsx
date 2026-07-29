@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
@@ -81,7 +81,7 @@ export default function ProviderMessagesScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
         ) : conversations.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="chatbubbles-outline" size={44} color={Colors.icon} />

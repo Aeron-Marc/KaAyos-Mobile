@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -100,7 +100,7 @@ export default function ProviderScheduleScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
         ) : displayed.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="calendar-outline" size={44} color={Colors.icon} />
@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   title: { fontSize: 28, fontWeight: '700', color: Colors.text },
   subtitle: { fontSize: 15, color: Colors.textSecondary, marginTop: 2 },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4, gap: 8 },
-  filterPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.surface },
+  filterRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, gap: 8 },
+  filterPill: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
   filterPillActive: { backgroundColor: Colors.primary },
   filterText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
   filterTextActive: { color: '#fff' },
@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
   scheduleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     padding: 16, borderRadius: 16, backgroundColor: Colors.surface, marginBottom: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
   },
   dateBox: {
     width: 54, height: 54, borderRadius: 12, backgroundColor: Colors.primaryLight,

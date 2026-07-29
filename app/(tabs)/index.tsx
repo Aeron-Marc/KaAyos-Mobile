@@ -152,9 +152,7 @@ export default function HomeScreen() {
 
       <Text style={styles.sectionTitle}>Available Workers</Text>
       {loading ? (
-        <>
-          <SkeletonCard /><SkeletonCard /><SkeletonCard />
-        </>
+        <View style={{ paddingHorizontal: 20 }}><SkeletonCard /><SkeletonCard /><SkeletonCard /></View>
       ) : (
         filteredWorkers.map(worker => (
           <WorkerCard
@@ -224,15 +222,15 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 16,
+    padding: 14,
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     borderTopWidth: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     elevation: 2,
   },
   statValue: { fontSize: 20, fontWeight: '700' },

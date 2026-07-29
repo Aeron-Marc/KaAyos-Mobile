@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, RefreshControl, Text, View, Alert } from 'react-native';
+import { StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, RefreshControl, Text, View, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,7 +95,7 @@ export default function ConversationScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="chatbubbles-outline" size={44} color={Colors.icon} />
-              <Text style={styles.emptyText}>{loading ? 'Loading...' : 'No messages yet. Start a conversation!'}</Text>
+              {loading ? <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} /> : <Text style={styles.emptyText}>No messages yet. Start a conversation!</Text>}
             </View>
           }
           renderItem={({ item }) => {

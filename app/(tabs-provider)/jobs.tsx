@@ -1,5 +1,5 @@
 ﻿import { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -194,7 +194,7 @@ export default function JobsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="briefcase-outline" size={44} color={Colors.icon} />
@@ -253,17 +253,17 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   title: { fontSize: 28, fontWeight: '700', color: Colors.text },
   subtitle: { fontSize: 15, color: Colors.textSecondary, marginTop: 2 },
-  segmentRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4, gap: 6, flexWrap: 'wrap' },
-  segment: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.surface },
-  segmentActive: { backgroundColor: Colors.primary },
+  segmentRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, gap: 8 },
+  segment: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  segmentActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   segmentText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
   segmentTextActive: { color: '#fff' },
-  list: { flex: 1, paddingHorizontal: 20, marginTop: 8 },
+  list: { flex: 1, paddingHorizontal: 20, marginTop: 4 },
   listContent: { paddingBottom: 4 },
   loadingText: { textAlign: 'center', paddingVertical: 40, color: Colors.textSecondary },
-  empty: { alignItems: 'center', paddingVertical: 80, gap: 12 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, gap: 12 },
   emptyText: { fontSize: 16, color: Colors.textSecondary },
-  card: { borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 12 },
+  card: { borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   cardTopLeft: { flex: 1 },
   serviceName: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 2 },
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   cardDetails: { gap: 8, marginBottom: 20 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailText: { fontSize: 14, color: Colors.textSecondary },
-  cardAction: { borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: Colors.primary },
+  cardAction: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.primary, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
   cardActionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
 

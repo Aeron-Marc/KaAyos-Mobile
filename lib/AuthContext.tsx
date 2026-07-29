@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/lib/secureStorage';
 import type { User } from '@/lib/api';
 import { setToken, setOnUnauthorized } from '@/lib/api';
 

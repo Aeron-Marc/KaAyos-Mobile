@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { StyleSheet, Animated, PanResponder, Dimensions, TextInput, FlatList, KeyboardAvoidingView, Platform, Text, View, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -6,7 +6,6 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { PressableScale } from '@/components/pressable-scale';
-import { useAuth } from '@/lib/AuthContext';
 import * as api from '@/lib/api';
 
 const SIZE = 56;
@@ -26,12 +25,11 @@ type ChatMsg = {
 export function FloatingStar() {
   const insets = useSafeAreaInsets();
   const { width: W, height: H } = Dimensions.get('window');
-  const { user } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { id: '0', type: 'bot', text: 'Hi! I can help you find the right worker. Tell me what you need.' },
+    { id: '0', type: 'bot', text: 'Hi! How can I help you today?', suggestions: ['How do I book a worker?', 'What areas do you serve?', 'How are workers verified?'] },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,8 +49,7 @@ export function FloatingStar() {
     }
   }, [open, anim]);
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (text: string) => {
     if (!text || loading) return;
     setInput('');
     setMessages(prev => [...prev, { id: Date.now().toString(), type: 'user', text }]);
@@ -169,7 +166,7 @@ export function FloatingStar() {
           {item.suggestions?.length ? (
             <View style={ov.chipRow}>
               {item.suggestions.map((s, i) => (
-                <TouchableOpacity key={i} style={ov.chip} onPress={() => setInput(s)} activeOpacity={0.7}>
+                <TouchableOpacity key={i} style={ov.chip} onPress={() => sendMessage(s)} activeOpacity={0.7}>
                   <Text style={ov.chipText} numberOfLines={1}>{s}</Text>
                 </TouchableOpacity>
               ))}
@@ -249,7 +246,7 @@ export function FloatingStar() {
                 style={ov.input}
                 editable={!loading}
               />
-              <PressableScale haptics onPress={sendMessage} style={[ov.sendBtn, !input.trim() && ov.sendBtnDisabled]}>
+              <PressableScale haptics onPress={() => sendMessage(input.trim())} style={[ov.sendBtn, !input.trim() && ov.sendBtnDisabled]}>
                 <Ionicons name="send" size={16} color="#fff" />
               </PressableScale>
             </View>

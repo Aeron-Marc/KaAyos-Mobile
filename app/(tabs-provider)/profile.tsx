@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, Switch, Platform } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, Switch, Platform, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,7 +98,7 @@ export default function ProviderProfileScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
         ) : worker ? (
           <>
             <View style={styles.profileCard}>

@@ -1,4 +1,4 @@
-﻿const API_BASE = 'http://192.168.1.3:3000/api';
+﻿const API_BASE = 'http://10.105.202.74:3000/api';
 
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;

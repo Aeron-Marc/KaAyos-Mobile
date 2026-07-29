@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, View, Text, ActivityIndicator } from 'react-native';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { StyleSheet, FlatList, TextInput, Keyboard, Platform, View, Text, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
@@ -10,17 +10,29 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  workers?: any[];
+  suggestions?: string[];
 }
 
 export default function SuggestionsScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '0', role: 'assistant', content: 'Hi! Tell me what kind of service you need and I\'ll find the best workers for you.' },
+    { id: '0', role: 'assistant', content: 'Hi! I can help you find plumbers, electricians, cleaners, carpenters, and more. Just tell me what you need help with!' },
   ]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, e => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
@@ -34,8 +46,8 @@ export default function SuggestionsScreen() {
     setHistory(newHistory);
 
     try {
-      const res = await api.chatSuggest(text, newHistory);
-      const reply: ChatMessage = { id: (Date.now() + 1).toString(), role: 'assistant', content: res.reply, workers: res.workers };
+      const res = await api.chatBot(text, newHistory);
+      const reply: ChatMessage = { id: (Date.now() + 1).toString(), role: 'assistant', content: res.reply, suggestions: res.suggestions };
       setMessages(prev => [...prev, reply]);
       setHistory(prev => [...prev, { role: 'assistant', content: res.reply }]);
     } catch (e: any) {
@@ -65,18 +77,11 @@ export default function SuggestionsScreen() {
       )}
       <View style={styles.bubbleContent}>
         <Text style={[styles.bubbleText, item.role === 'user' && styles.userText]}>{item.content}</Text>
-        {item.workers && item.workers.length > 0 && (
-          <View style={styles.workerList}>
-            {item.workers.slice(0, 3).map((w: any) => (
-              <PressableScale key={w.id} style={styles.workerCard} onPress={() => router.push(`/worker/${w.id}`)}>
-                <View style={styles.workerAvatar}>
-                  <Text style={styles.workerInitials}>{w.initials || w.name?.charAt(0) || '?'}</Text>
-                </View>
-                <View style={styles.workerInfo}>
-                  <Text style={styles.workerName}>{w.name}</Text>
-                  <Text style={styles.workerMeta}>{w.category} · ★ {w.rating} · {w.match_percent}% match</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.icon} />
+        {item.suggestions && item.suggestions.length > 0 && (
+          <View style={styles.chipsRow}>
+            {item.suggestions.map((s, i) => (
+              <PressableScale key={i} style={styles.chip} onPress={() => handleSuggestionTap(s)}>
+                <Text style={styles.chipText}>{s}</Text>
               </PressableScale>
             ))}
           </View>
@@ -85,8 +90,10 @@ export default function SuggestionsScreen() {
     </View>
   );
 
+  const inputPadding = useMemo(() => ({ paddingBottom: keyboardHeight }), [keyboardHeight]);
+
   return (
-    <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+    <View style={styles.safe}>
       <View style={styles.header}>
         <PressableScale onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
@@ -103,17 +110,19 @@ export default function SuggestionsScreen() {
         keyExtractor={item => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         ListFooterComponent={sending ? <View style={styles.typing}><ActivityIndicator size="small" color={Colors.primary} /><Text style={styles.typingText}>Thinking...</Text></View> : null}
       />
 
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, inputPadding]}>
         <TextInput
           style={styles.input}
           placeholder="What do you need help with?"
           placeholderTextColor={Colors.icon}
           value={input}
           onChangeText={setInput}
+          onFocus={() => setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 200)}
           multiline
           maxLength={500}
         />
@@ -121,7 +130,7 @@ export default function SuggestionsScreen() {
           <Ionicons name="send" size={18} color="#fff" />
         </PressableScale>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -139,13 +148,9 @@ const styles = StyleSheet.create({
   bubbleContent: { flex: 1 },
   bubbleText: { fontSize: 15, color: Colors.text, lineHeight: 22, backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, overflow: 'hidden' },
   userText: { backgroundColor: Colors.primary, color: '#fff', borderBottomRightRadius: 4 },
-  workerList: { marginTop: 8, gap: 6 },
-  workerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 10, gap: 10, borderWidth: 1, borderColor: Colors.border },
-  workerAvatar: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  workerInitials: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  workerInfo: { flex: 1 },
-  workerName: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  workerMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary },
+  chipText: { fontSize: 13, fontWeight: '500', color: Colors.primary },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface, gap: 8 },
   input: { flex: 1, minHeight: 44, maxHeight: 100, backgroundColor: Colors.background, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 10, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
