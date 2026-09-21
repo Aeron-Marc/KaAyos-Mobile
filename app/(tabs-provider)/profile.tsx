@@ -1,7 +1,8 @@
-﻿import { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, Switch, Platform, ActivityIndicator } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, Switch, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -85,6 +86,33 @@ export default function ProviderProfileScreen() {
       setLocating(false);
     }
   }, [showToast]);
+
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+
+  const handleUploadDoc = async (docType: 'government_id' | 'barangay_clearance') => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        showToast('Permission to access photos is required', 'error');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      setUploadingDocType(docType);
+      await api.uploadWorkerDocument(docType, result.assets[0].uri);
+      showToast(`${docType === 'government_id' ? 'Government ID' : 'Barangay Clearance'} uploaded! Verification pending.`, 'success');
+      fetchProfile();
+    } catch (e: any) {
+      Alert.alert('Upload Error', e.message || 'Failed to upload document');
+    } finally {
+      setUploadingDocType(null);
+    }
+  };
 
   return (
     <View style={styles.safe}>
@@ -229,21 +257,69 @@ export default function ProviderProfileScreen() {
               </View>
             )}
 
-            {worker.documents && worker.documents.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Documents</Text>
-                {worker.documents.map((d, i) => (
-                  <View key={i} style={styles.docRow}>
-                    <Ionicons
-                      name={d.status === 'verified' ? 'checkmark-circle' : d.status === 'pending' ? 'time-outline' : 'close-circle-outline'}
-                      size={16}
-                      color={d.status === 'verified' ? Colors.success : d.status === 'pending' ? Colors.star : Colors.error}
-                    />
-                    <Text style={styles.docText}>{d.type.replace(/_/g, ' ')} â€” {d.status}</Text>
-                  </View>
-                ))}
+            {/* Document Verification Hub */}
+            <View style={styles.section}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={styles.sectionTitle}>Verification Documents</Text>
+                <Ionicons name="shield-checkmark-outline" size={20} color={Colors.primary} />
               </View>
-            )}
+              <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 14, lineHeight: 18 }}>
+                Upload photos of your Government ID and Barangay Clearance to earn the Tuy Verified Worker Badge.
+              </Text>
+
+              {[
+                { type: 'government_id' as const, label: 'Government ID', desc: "Driver's License, PhilSys, UMID, Postal ID" },
+                { type: 'barangay_clearance' as const, label: 'Barangay Clearance', desc: 'Official Tuy Barangay clearance certificate' },
+              ].map(item => {
+                const doc = (worker.documents || []).find(d => d.type === item.type);
+                const status = doc?.status || 'not_uploaded';
+                const isUploading = uploadingDocType === item.type;
+
+                return (
+                  <View key={item.type} style={styles.docUploadCard}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Text style={styles.docCardTitle}>{item.label}</Text>
+                        <View style={[
+                          styles.docStatusBadge,
+                          status === 'verified' && { backgroundColor: '#f0fdf4' },
+                          status === 'pending' && { backgroundColor: '#fffbeb' },
+                          status === 'not_uploaded' && { backgroundColor: '#f8fafc' },
+                        ]}>
+                          <Text style={[
+                            styles.docStatusText,
+                            status === 'verified' && { color: '#16a34a' },
+                            status === 'pending' && { color: '#d97706' },
+                            status === 'not_uploaded' && { color: Colors.textMuted },
+                          ]}>
+                            {status === 'verified' ? 'Verified' : status === 'pending' ? 'Pending Review' : 'Not Uploaded'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.docCardDesc}>{item.desc}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.uploadDocBtn}
+                      onPress={() => handleUploadDoc(item.type)}
+                      disabled={isUploading}
+                      activeOpacity={0.7}
+                    >
+                      {isUploading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="camera-outline" size={14} color="#fff" />
+                          <Text style={styles.uploadDocBtnText}>
+                            {status === 'not_uploaded' ? 'Upload' : 'Retake'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
 
             {worker.reviews && worker.reviews.length > 0 && (
               <View style={styles.section}>
@@ -348,6 +424,31 @@ const styles = StyleSheet.create({
   portfolioCaption: { fontSize: 12, fontWeight: '500', color: Colors.textSecondary, padding: 8, textAlign: 'center' },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
   docText: { fontSize: 13, color: Colors.text, flex: 1, textTransform: 'capitalize' },
+  docUploadCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    marginBottom: 10,
+  },
+  docCardTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  docStatusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  docStatusText: { fontSize: 11, fontWeight: '600' },
+  docCardDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 3 },
+  uploadDocBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  uploadDocBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   reviewCard: { borderWidth: 1, borderColor: Colors.border, borderRadius: 12, padding: 12, marginBottom: 8 },
   reviewClient: { fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 4 },
   reviewStars: { flexDirection: 'row', gap: 2, marginBottom: 4 },

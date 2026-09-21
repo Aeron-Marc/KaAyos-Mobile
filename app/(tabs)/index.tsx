@@ -96,19 +96,55 @@ export default function HomeScreen() {
       {stats && (
         <View style={styles.statsRow}>
           {[
-            { label: 'Active', value: stats.activeBookings ?? 0, icon: 'calendar', color: Colors.primary },
-            { label: 'Completed', value: stats.completedJobs ?? 0, icon: 'checkmark-circle', color: '#16a34a' },
-            { label: 'Messages', value: stats.unreadMessages ?? 0, icon: 'chatbubble', color: '#2563eb' },
-            { label: 'Reviews', value: stats.pendingReviews ?? 0, icon: 'star', color: '#d97706' },
+            { label: 'Active', value: stats.activeBookings ?? 0, icon: 'calendar', color: Colors.primary, route: '/(tabs)/bookings' },
+            { label: 'Completed', value: stats.completedJobs ?? 0, icon: 'checkmark-circle', color: '#16a34a', route: '/(tabs)/bookings' },
+            { label: 'Messages', value: stats.unreadMessages ?? 0, icon: 'chatbubble', color: '#2563eb', route: '/(tabs)/chat' },
+            { label: 'Reviews', value: stats.pendingReviews ?? 0, icon: 'star', color: '#d97706', route: '/(tabs)/bookings' },
           ].map(s => (
-            <View key={s.label} style={[styles.statCard, { borderTopColor: s.color }]}>
+            <TouchableOpacity
+              key={s.label}
+              style={[styles.statCard, { borderTopColor: s.color }]}
+              onPress={() => router.push(s.route as any)}
+              activeOpacity={0.7}
+            >
               <Ionicons name={s.icon as any} size={18} color={s.color} />
               <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       )}
+
+      {/* Quick Discovery Shortcuts */}
+      <View style={styles.quickActionsRow}>
+        <PressableScale
+          style={styles.quickActionCard}
+          onPress={() => (router.push as any)('/map')}
+        >
+          <View style={[styles.quickIconCircle, { backgroundColor: '#eff6ff' }]}>
+            <Ionicons name="map" size={18} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickActionTitle}>Tuy Map</Text>
+            <Text style={styles.quickActionSubtitle}>22 Barangays</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
+        </PressableScale>
+
+        <PressableScale
+          style={styles.quickActionCard}
+          onPress={() => (router.push as any)('/suggestions')}
+        >
+          <View style={[styles.quickIconCircle, { backgroundColor: '#fef3c7' }]}>
+            <Ionicons name="sparkles" size={18} color="#d97706" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickActionTitle}>Smart Match</Text>
+            <Text style={styles.quickActionSubtitle}>AI Assistant</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
+        </PressableScale>
+      </View>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Categories</Text>
@@ -232,6 +268,44 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 2,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 14,
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  quickIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  quickActionSubtitle: {
+    fontSize: 11,
+    color: Colors.textSecondary,
   },
   statValue: { fontSize: 20, fontWeight: '700' },
   statLabel: { fontSize: 11, fontWeight: '500', color: Colors.textSecondary },

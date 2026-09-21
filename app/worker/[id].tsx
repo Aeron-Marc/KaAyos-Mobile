@@ -111,10 +111,15 @@ export default function WorkerDetailScreen() {
             </View>
           </View>
 
-          <PressableScale haptics style={styles.bookBtn} onPress={() => router.push(`/modal/booking?id=${worker.id}`)}>
-            <Ionicons name="calendar-outline" size={18} color="#fff" />
-            <Text style={styles.bookBtnText}>Book Service</Text>
-          </PressableScale>
+          <View style={styles.actionRow}>
+            <PressableScale haptics style={styles.chatBtn} onPress={() => router.push(`/chat/${worker.id}`)}>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors.primary} />
+            </PressableScale>
+            <PressableScale haptics style={styles.bookBtn} onPress={() => router.push(`/modal/booking?id=${worker.id}`)}>
+              <Ionicons name="calendar-outline" size={18} color="#fff" />
+              <Text style={styles.bookBtnText}>Book Service</Text>
+            </PressableScale>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -206,8 +211,10 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 16, fontWeight: '700', color: Colors.text },
   statLabel: { fontSize: 11, fontWeight: '500', color: Colors.textSecondary },
   statPrice: { fontSize: 16, fontWeight: '700', color: Colors.primary, marginBottom: 4 },
-  bookBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, backgroundColor: Colors.primary },
-  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' },
+  chatBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  bookBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12, backgroundColor: Colors.primary },
+  bookBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   section: { marginHorizontal: 20, borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   aboutText: { fontSize: 15, lineHeight: 22, color: Colors.textSecondary },

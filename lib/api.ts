@@ -1,4 +1,4 @@
-﻿const API_BASE = 'http://10.105.202.74:3000/api';
+const API_BASE = 'http://192.168.1.8:3000/api';
 
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
@@ -103,24 +103,58 @@ export interface WorkerDetail {
   documents: { type: string; status: string; file_path: string; admin_notes: string | null; verified_at: string | null }[];
 }
 
+export interface BookingPhoto {
+  id: number;
+  url: string;
+  caption: string | null;
+  created_at: string;
+}
+
 export interface Booking {
   id: number;
+  booking_ref?: string;
   worker_id: number;
   client_id: number;
   service_category: string;
   scheduled_at: string;
   address: string;
+  house_no?: string | null;
+  barangay?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   notes: string | null;
-  status: 'new' | 'accepted' | 'en_route' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'new' | 'accepted' | 'en_route' | 'in_progress' | 'completed' | 'cancelled' | 'declined';
   price: number | null;
+  property_type?: string | null;
+  pricing_type?: string | null;
+  estimated_duration_hours?: number | null;
+  complexity_level?: string | null;
+  reschedule_requested_by?: number | null;
+  reschedule_proposed_at?: string | null;
+  reschedule_reason?: string | null;
+  reschedule_status?: 'pending' | 'approved' | 'declined' | null;
+  reschedule_responded_at?: string | null;
   created_at: string;
   completed_at: string | null;
+  cancelled_at?: string | null;
+  cancellation_reason?: string | null;
   other_name: string;
   other_avatar: string | null;
+  other_phone?: string | null;
   completion_requested_by?: number | null;
   completion_requested_at?: string | null;
   confirmed_by_worker_at?: string | null;
   confirmed_by_client_at?: string | null;
+  work_started_at?: string | null;
+  work_ended_at?: string | null;
+  scope_amendment_price?: number | null;
+  scope_amendment_notes?: string | null;
+  scope_amendment_status?: 'pending' | 'approved' | 'declined' | null;
+  scope_amendment_requested_at?: string | null;
+  review_id?: number | null;
+  review_rating?: number | null;
+  review_comment?: string | null;
+  photos?: BookingPhoto[];
   completion_status?: {
     is_pending: boolean;
     requested_by: 'worker' | 'client' | null;
@@ -136,6 +170,7 @@ export interface Message {
   sender_id: number;
   receiver_id: number;
   message: string;
+  photo_url?: string | null;
   read_at: string | null;
   created_at: string;
   sender_name: string;
@@ -257,14 +292,21 @@ export async function getBookings(): Promise<Booking[]> {
 }
 
 export async function createBooking(data: {
-  client_id: number;
   worker_id: number;
   service_category: string;
   scheduled_at: string;
   address: string;
+  house_no?: string;
+  barangay?: string;
   notes?: string;
   price?: number;
-}): Promise<{ success: boolean; msg: string; bookingId: number }> {
+  property_type?: string;
+  pricing_type?: string;
+  estimated_duration_hours?: number;
+  complexity_level?: string;
+  latitude?: number;
+  longitude?: number;
+}): Promise<{ success: boolean; msg: string; bookingId: number; bookingRef?: string }> {
   return request('/bookings', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -273,11 +315,68 @@ export async function createBooking(data: {
 
 export async function updateBookingStatus(
   bookingId: number,
-  status: string
+  status: string,
+  decline_reason?: string
 ): Promise<{ success: boolean; msg: string }> {
   return request(`/bookings/${bookingId}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, decline_reason }),
+  });
+}
+
+export async function requestReschedule(
+  bookingId: number,
+  proposed_at: string,
+  reason?: string
+): Promise<{ success: boolean; msg: string }> {
+  return request(`/bookings/${bookingId}/reschedule`, {
+    method: 'POST',
+    body: JSON.stringify({ proposed_at, reason }),
+  });
+}
+
+export async function respondReschedule(
+  bookingId: number,
+  action: 'approve' | 'decline'
+): Promise<{ success: boolean; msg: string }> {
+  return request(`/bookings/${bookingId}/reschedule-respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  });
+}
+
+export async function uploadBookingPhoto(
+  bookingId: number,
+  file: FormData
+): Promise<{ success: boolean; msg: string; photo: BookingPhoto }> {
+  const headers: Record<string, string> = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const response = await fetch(`${API_BASE}/bookings/${bookingId}/photo`, {
+    method: 'POST',
+    headers,
+    body: file,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Photo upload failed');
+  return data;
+}
+
+export async function confirmBookingCompletion(
+  bookingId: number
+): Promise<{ success: boolean; fullyCompleted: boolean; msg: string }> {
+  return request(`/bookings/${bookingId}/confirm-complete`, {
+    method: 'POST',
+  });
+}
+
+export async function pingWorkerLocation(
+  bookingId: number,
+  latitude: number,
+  longitude: number
+): Promise<{ success: boolean; msg: string }> {
+  return request(`/bookings/${bookingId}/location-ping`, {
+    method: 'POST',
+    body: JSON.stringify({ latitude, longitude }),
   });
 }
 
@@ -352,11 +451,11 @@ export async function getEarnings(): Promise<Earnings> {
 
 export async function submitReview(data: {
   booking_id: number;
-  client_id: number;
+  client_id?: number;
   worker_id: number;
   rating: number;
   comment?: string;
-}): Promise<{ success: boolean; msg: string }> {
+}): Promise<{ success: boolean; msg?: string }> {
   return request('/reviews', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -440,8 +539,107 @@ export async function markBookingComplete(bookingId: number): Promise<{ success:
   });
 }
 
-export async function confirmBookingCompletion(bookingId: number): Promise<{ success: boolean; msg: string }> {
-  return request(`/bookings/${bookingId}/confirm-complete`, {
+export async function startWorkTimer(bookingId: number): Promise<{ success: boolean; msg?: string }> {
+  return request(`/bookings/${bookingId}/timer-start`, {
     method: 'POST',
   });
+}
+
+export async function stopWorkTimer(bookingId: number): Promise<{
+  success: boolean;
+  msg?: string;
+  elapsedHours?: number;
+  price?: number;
+}> {
+  return request(`/bookings/${bookingId}/timer-stop`, {
+    method: 'POST',
+  });
+}
+
+export async function requestScopeAmendment(
+  bookingId: number,
+  data: { additional_price?: number; new_total_price?: number; notes: string }
+): Promise<{ success: boolean; msg?: string; new_price?: number }> {
+  return request(`/bookings/${bookingId}/scope-amendment`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function respondScopeAmendment(
+  bookingId: number,
+  action: 'approved' | 'declined'
+): Promise<{ success: boolean; msg?: string }> {
+  return request(`/bookings/${bookingId}/scope-amendment-respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  });
+}
+
+export async function uploadChatPhoto(imageUri: string): Promise<{ success: boolean; photoPath: string; url: string }> {
+  const formData = new FormData();
+  formData.append('photo', {
+    uri: imageUri,
+    type: 'image/jpeg',
+    name: 'chat_photo.jpg',
+  } as any);
+
+  const url = `${API_BASE}/messages/upload`;
+  const headers: Record<string, string> = {
+    'ngrok-skip-browser-warning': 'true',
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to upload chat photo');
+  }
+  return data;
+}
+
+export async function uploadWorkerDocument(
+  documentType: 'government_id' | 'barangay_clearance',
+  imageUri: string
+): Promise<{ success: boolean; msg: string; file_path: string }> {
+  const formData = new FormData();
+  formData.append('document_type', documentType);
+  formData.append('file', {
+    uri: imageUri,
+    type: 'image/jpeg',
+    name: `${documentType}.jpg`,
+  } as any);
+
+  const url = `${API_BASE}/worker/document`;
+  const headers: Record<string, string> = {
+    'ngrok-skip-browser-warning': 'true',
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to upload document');
+  }
+  return data;
+}
+
+export async function getWorkerDocuments(): Promise<
+  Array<{ id: number; document_type: string; file_path: string; status: string; admin_notes: string | null }>
+> {
+  return request('/worker/documents');
 }

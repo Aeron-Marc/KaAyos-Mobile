@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, ScrollView, RefreshControl, View, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -119,7 +120,12 @@ export default function ProviderScheduleScreen() {
             const sd = scheduleDate(job.scheduled_at);
             const isPast = job.status === 'completed' || job.status === 'cancelled';
             return (
-              <View key={job.id} style={styles.scheduleRow}>
+              <TouchableOpacity
+                key={job.id}
+                style={styles.scheduleRow}
+                activeOpacity={0.7}
+                onPress={() => router.push('/(tabs-provider)/jobs')}
+              >
                 <View style={[styles.dateBox, isPast && styles.dateBoxPast]}>
                   <Text style={[styles.dateMonth, isPast && styles.dateMonthPast]}>{sd.month}</Text>
                   <Text style={[styles.dateDay, isPast && styles.dateDayPast]}>{sd.day}</Text>
@@ -141,7 +147,7 @@ export default function ProviderScheduleScreen() {
                 <View style={[styles.badge, { backgroundColor: sb.bg }]}>
                   <Text style={[styles.badgeText, { color: sb.text }]}>{sb.label}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}

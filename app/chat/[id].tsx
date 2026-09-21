@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, RefreshControl, Text, View, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, RefreshControl, Text, View, Alert, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -16,6 +17,7 @@ export default function ConversationScreen() {
   const [input, setInput] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [otherName, setOtherName] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
@@ -64,6 +66,34 @@ export default function ConversationScreen() {
     }
   };
 
+  const handleAttachPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Needed', 'Please allow gallery access to share photos in chat.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      setUploadingPhoto(true);
+      const res = await api.uploadChatPhoto(result.assets[0].uri);
+      await api.sendMessage({
+        sender_id: userId!,
+        receiver_id: otherId,
+        message: `[Photo] ${res.url}`,
+      });
+      await fetchMessages();
+    } catch (e: any) {
+      Alert.alert('Upload Error', e.message || 'Failed to send photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchMessages();
@@ -100,12 +130,19 @@ export default function ConversationScreen() {
           }
           renderItem={({ item }) => {
             const isMine = item.sender_id === userId;
+            const isPhoto = item.message.startsWith('[Photo] ');
+            const photoUrl = isPhoto ? item.message.replace('[Photo] ', '').trim() : null;
+
             return (
               <View style={[styles.row, isMine ? styles.userRow : styles.botRow]}>
                 <View style={[styles.bubble, isMine ? styles.userBubble : styles.botBubble]}>
-                  <Text style={[styles.bubbleText, isMine && styles.userBubbleText]}>
-                    {item.message}
-                  </Text>
+                  {isPhoto && photoUrl ? (
+                    <Image source={{ uri: photoUrl }} style={styles.chatPhotoBubble} resizeMode="cover" />
+                  ) : (
+                    <Text style={[styles.bubbleText, isMine && styles.userBubbleText]}>
+                      {item.message}
+                    </Text>
+                  )}
                   <Text style={[styles.timeText, isMine ? styles.userTimeText : styles.botTimeText]}>
                     {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
@@ -116,6 +153,18 @@ export default function ConversationScreen() {
         />
 
         <View style={styles.inputBar}>
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={handleAttachPhoto}
+            disabled={uploadingPhoto}
+            activeOpacity={0.7}
+          >
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Ionicons name="camera-outline" size={22} color={Colors.textSecondary} />
+            )}
+          </TouchableOpacity>
           <TextInput
             value={input}
             onChangeText={setInput}
@@ -154,6 +203,8 @@ const styles = StyleSheet.create({
   userTimeText: { color: 'rgba(255,255,255,0.7)' },
   botTimeText: { color: Colors.textMuted },
   inputBar: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, gap: 10, alignItems: 'center', backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
+  attachBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
   chatInput: { flex: 1, height: 44, borderRadius: 10, paddingHorizontal: 16, fontSize: 15, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, color: Colors.text },
   sendBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  chatPhotoBubble: { width: 220, height: 180, borderRadius: 12, marginBottom: 4 },
 });

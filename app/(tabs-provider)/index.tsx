@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,7 +70,7 @@ export default function ProviderDashboardScreen() {
 
   const handleDecline = async (bookingId: number) => {
     try {
-      await api.updateBookingStatus(bookingId, 'cancelled');
+      await api.updateBookingStatus(bookingId, 'declined');
       showToast('Job declined', 'info');
       fetchData();
     } catch (e: any) {

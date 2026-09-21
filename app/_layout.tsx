@@ -1,4 +1,4 @@
-﻿import 'react-native-reanimated';
+import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -26,6 +26,9 @@ export default function RootLayout() {
           <Stack.Screen name="worker/[id]" options={{ presentation: 'card' }} />
           <Stack.Screen name="profile-edit" options={{ presentation: 'card' }} />
           <Stack.Screen name="map" options={{ presentation: 'card' }} />
+          <Stack.Screen name="suggestions" options={{ presentation: 'card' }} />
+          <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+          <Stack.Screen name="chat/[id]" options={{ presentation: 'card' }} />
           <Stack.Screen name="modal/booking" options={{ presentation: 'modal' }} />
         </Stack>
         <StatusBar style="dark" />

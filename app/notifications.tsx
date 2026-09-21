@@ -6,8 +6,10 @@ import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
 import type { Notification } from '@/lib/api';
 import { PressableScale } from '@/components/pressable-scale';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function NotificationsScreen() {
+  const { user } = useAuth();
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,10 +42,36 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handlePress = async (item: Notification) => {
+    await markRead(item.id);
+    const text = (item.title + ' ' + item.message).toLowerCase();
+    if (text.includes('message') || text.includes('chat')) {
+      if (user?.role === 'worker') {
+        router.push('/(tabs-provider)/messages' as any);
+      } else {
+        router.push('/(tabs)/chat' as any);
+      }
+    } else if (
+      text.includes('booking') ||
+      text.includes('job') ||
+      text.includes('schedule') ||
+      text.includes('reschedule') ||
+      text.includes('complete') ||
+      text.includes('cancel') ||
+      text.includes('accepted')
+    ) {
+      if (user?.role === 'worker') {
+        router.push('/(tabs-provider)/jobs' as any);
+      } else {
+        router.push('/(tabs)/bookings' as any);
+      }
+    }
+  };
+
   const renderItem = ({ item }: { item: Notification }) => (
     <PressableScale
       style={[styles.card, !item.read && styles.unread]}
-      onPress={() => markRead(item.id)}
+      onPress={() => handlePress(item)}
     >
       <View style={[styles.iconCircle, !item.read && styles.iconUnread]}>
         <Ionicons name={item.read ? 'notifications-outline' : 'notifications'} size={20} color={item.read ? Colors.textSecondary : Colors.primary} />
