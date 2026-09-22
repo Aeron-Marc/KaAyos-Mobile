@@ -584,7 +584,7 @@ export default function JobsScreen() {
                   <View style={styles.contactLinksRow}>
                     <TouchableOpacity
                       style={styles.chatLink}
-                      onPress={() => router.push(`/chat/${job.client_id}`)}
+                      onPress={() => router.push(`/chat/${job.client_id}?bookingId=${job.id}`)}
                     >
                       <Ionicons name="chatbubble-outline" size={14} color={Colors.primary} />
                       <Text style={styles.chatLinkText}>Chat</Text>

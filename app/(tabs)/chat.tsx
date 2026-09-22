@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, ScrollView, RefreshControl, View, Text, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,7 +37,7 @@ export default function ChatListScreen() {
       }, {});
 
       const convos = Object.entries(grouped).map(([id, data]) => {
-        const sorted = data.msgs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const sorted = data.msgs.sort((a, b) => b.id - a.id);
         const latest = sorted[0];
         return {
           id: Number(id),

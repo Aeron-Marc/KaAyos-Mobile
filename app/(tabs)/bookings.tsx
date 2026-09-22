@@ -385,7 +385,7 @@ export default function BookingsScreen() {
                   {/* Chat Action */}
                   <TouchableOpacity
                     style={styles.actionBtn}
-                    onPress={() => router.push(`/chat/${booking.worker_id}`)}
+                    onPress={() => router.push(`/chat/${booking.worker_id}?bookingId=${booking.id}`)}
                   >
                     <Ionicons name="chatbubble-outline" size={16} color={Colors.text} />
                     <Text style={styles.actionBtnText}>Message</Text>

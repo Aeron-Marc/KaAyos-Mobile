@@ -1,4 +1,7 @@
-const API_BASE = 'http://192.168.1.8:3000/api';
+export const SERVER_HOST = '192.168.0.187';
+export const SERVER_PORT = 3000;
+export const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
+export const API_BASE = `${SERVER_URL}/api`;
 
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
@@ -19,6 +22,33 @@ export function isAuthenticated(): boolean {
   return !!authToken;
 }
 
+export const TUY_BARANGAYS = [
+  'Acle',
+  'Bayudbud',
+  'Bolbok',
+  'Burgos',
+  'Dalima',
+  'Dao',
+  'Guinhawa',
+  'Lumbangan',
+  'Luna',
+  'Luntal',
+  'Magahis',
+  'Malibu',
+  'Mataywanac',
+  'Palincaro',
+  'Putol',
+  'Rillo',
+  'Rizal',
+  'Sabang',
+  'San Jose',
+  'Talon',
+  'Toong',
+  'Tuyon-Tuyon',
+] as const;
+
+export type TuyBarangay = typeof TUY_BARANGAYS[number];
+
 export interface User {
   id: number;
   name: string;
@@ -29,6 +59,11 @@ export interface User {
   role: 'client' | 'worker' | 'admin';
   service_category: string | null;
   city: string | null;
+  barangay?: string | null;
+  street_address?: string | null;
+  location_source?: 'gps' | 'manual' | null;
+  email_notifications?: string;
+  language?: string;
   avatar: string | null;
   email_verified: boolean;
 }
@@ -385,7 +420,17 @@ export async function getProfile(): Promise<{ success: boolean; user: User }> {
 }
 
 export async function updateProfile(
-  data: { first_name?: string; last_name?: string; phone?: string; city?: string }
+  data: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    city?: string;
+    barangay?: string;
+    street_address?: string;
+    location_source?: 'gps' | 'manual';
+    email_notifications?: string;
+    language?: string;
+  }
 ): Promise<{ success: boolean; msg: string }> {
   return request('/profile', {
     method: 'PUT',
@@ -393,13 +438,27 @@ export async function updateProfile(
   });
 }
 
-export async function uploadAvatar(file: FormData): Promise<{ success: boolean; msg: string; avatar_url: string }> {
-  const headers: Record<string, string> = {};
+export async function uploadAvatar(fileOrUri: FormData | string): Promise<{ success: boolean; msg: string; avatar_url: string }> {
+  let body: FormData;
+  if (typeof fileOrUri === 'string') {
+    body = new FormData();
+    body.append('file', {
+      uri: fileOrUri,
+      type: 'image/jpeg',
+      name: 'avatar.jpg',
+    } as any);
+  } else {
+    body = fileOrUri;
+  }
+
+  const headers: Record<string, string> = {
+    'ngrok-skip-browser-warning': 'true',
+  };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
   const response = await fetch(`${API_BASE}/profile/avatar`, {
     method: 'POST',
     headers,
-    body: file,
+    body,
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Avatar upload failed');

@@ -1,5 +1,19 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, RefreshControl, Text, View, Alert, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
+import {
+  StyleSheet,
+  TextInput,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  Text,
+  View,
+  Alert,
+  ActivityIndicator,
+  Image,
+  TouchableOpacity,
+  Keyboard,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,14 +25,14 @@ import { PressableScale } from '@/components/pressable-scale';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function ConversationScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, bookingId, name } = useLocalSearchParams<{ id: string; bookingId?: string; name?: string }>();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [otherName, setOtherName] = useState('');
+  const [otherName, setOtherName] = useState(name || '');
   const flatListRef = useRef<FlatList>(null);
 
   const userId = user?.id;
@@ -32,22 +46,48 @@ export default function ConversationScreen() {
         m => (m.sender_id === otherId && m.receiver_id === userId) ||
              (m.sender_id === userId && m.receiver_id === otherId)
       );
-      const first = filtered[0];
-      if (first) {
-        const name = first.sender_id === userId ? first.receiver_name : first.sender_name;
-        setOtherName(name);
+      // Strictly chronological ascending: oldest -> newest
+      const sorted = filtered.sort((a, b) => a.id - b.id);
+      const anyMsg = sorted[0];
+      if (anyMsg && !otherName) {
+        const foundName = anyMsg.sender_id === userId ? anyMsg.receiver_name : anyMsg.sender_name;
+        setOtherName(foundName);
       }
-      setMessages(filtered);
+      setMessages(sorted);
     } catch (e) {
       console.error('Failed to fetch messages', e);
     }
-  }, [userId, otherId]);
+  }, [userId, otherId, otherName]);
 
   useEffect(() => {
     if (userId) {
-      fetchMessages().finally(() => setLoading(false));
+      fetchMessages().finally(() => {
+        setLoading(false);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+      });
     }
   }, [userId, fetchMessages]);
+
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const sendMessage = async () => {
     if (!input.trim() || !userId) return;
@@ -58,9 +98,11 @@ export default function ConversationScreen() {
       await api.sendMessage({
         sender_id: userId,
         receiver_id: otherId,
+        booking_id: bookingId ? Number(bookingId) : undefined,
         message: text,
       });
       await fetchMessages();
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
@@ -84,9 +126,11 @@ export default function ConversationScreen() {
       await api.sendMessage({
         sender_id: userId!,
         receiver_id: otherId,
+        booking_id: bookingId ? Number(bookingId) : undefined,
         message: `[Photo] ${res.url}`,
       });
       await fetchMessages();
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
       Alert.alert('Upload Error', e.message || 'Failed to send photo');
     } finally {
@@ -100,11 +144,14 @@ export default function ConversationScreen() {
     setRefreshing(false);
   }, [fetchMessages]);
 
-  const convoMessages = [...messages].reverse();
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior="padding"
+        keyboardVerticalOffset={0}
+        enabled={Platform.OS === 'ios' ? true : keyboardVisible}
+      >
         <View style={styles.header}>
           <PressableScale onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={Colors.text} />
@@ -116,16 +163,24 @@ export default function ConversationScreen() {
 
         <FlatList
           ref={flatListRef}
-          data={loading ? [] : convoMessages}
+          style={styles.flex}
+          data={loading ? [] : messages}
           keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="chatbubbles-outline" size={44} color={Colors.icon} />
-              {loading ? <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} /> : <Text style={styles.emptyText}>No messages yet. Start a conversation!</Text>}
+              {loading ? (
+                <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
+              ) : (
+                <Text style={styles.emptyText}>No messages yet. Start a conversation!</Text>
+              )}
             </View>
           }
           renderItem={({ item }) => {
@@ -171,6 +226,10 @@ export default function ConversationScreen() {
             placeholder="Type your message..."
             placeholderTextColor={Colors.icon}
             style={styles.chatInput}
+            onFocus={() => {
+              setKeyboardVisible(true);
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+            }}
           />
           <PressableScale haptics onPress={sendMessage} style={styles.sendBtn}>
             <Ionicons name="send" size={18} color="#fff" />

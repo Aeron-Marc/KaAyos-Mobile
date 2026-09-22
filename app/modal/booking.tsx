@@ -108,14 +108,15 @@ export default function BookingModal() {
   const estimatedPrice = useMemo(() => {
     if (!worker) return 0;
     let base = 0;
+    const workerHourly = Number(worker.hourly_rate) > 0 ? Number(worker.hourly_rate) : 350;
     if (pricingType === 'hourly') {
-      base = (worker.hourly_rate || 350) * 2; // 2 hours default
+      base = workerHourly * 2; // 2 hours default
     } else {
       const svc = worker.services?.find(s => s.name === selectedService);
-      base = svc?.custom_price || svc?.base_price || worker.hourly_rate || 400;
+      base = Number(svc?.custom_price) || Number(svc?.base_price) || workerHourly || 400;
     }
     const mult = complexity === 'moderate' ? 1.2 : complexity === 'complex' ? 1.5 : 1.0;
-    return Math.round(base * mult);
+    return Math.max(300, Math.round(base * mult));
   }, [worker, pricingType, selectedService, complexity]);
 
   if (loading) {

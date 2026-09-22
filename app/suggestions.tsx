@@ -13,6 +13,10 @@ interface SuggestedWorker {
   rating?: number;
   hourly_rate?: number;
   city?: string;
+  barangay?: string;
+  location?: string;
+  distance_km?: number;
+  verified?: boolean;
   avatar?: string;
 }
 
@@ -143,10 +147,20 @@ export default function SuggestionsScreen() {
                   </View>
                   <View style={styles.workerDetails}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={styles.workerName}>{w.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                        <Text style={styles.workerName} numberOfLines={1}>{w.name}</Text>
+                        {w.verified && <Ionicons name="checkmark-circle" size={14} color="#16a34a" />}
+                      </View>
                       <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
                     </View>
                     <Text style={styles.workerCategory}>{w.category || 'Service Provider'}</Text>
+                    <View style={styles.workerLocationRow}>
+                      <Ionicons name="location-sharp" size={12} color={Colors.primary} />
+                      <Text style={styles.workerLocationText} numberOfLines={1}>
+                        {w.barangay ? `Brgy. ${w.barangay}, Tuy` : (w.city || 'Tuy, Batangas')}
+                        {w.distance_km ? ` • ${w.distance_km} km` : ''}
+                      </Text>
+                    </View>
                     <View style={styles.workerSubRow}>
                       <Ionicons name="star" size={13} color={Colors.star} />
                       <Text style={styles.workerRating}>{w.rating || 5.0}</Text>
@@ -265,6 +279,8 @@ const styles = StyleSheet.create({
   workerDetails: { flex: 1 },
   workerName: { fontSize: 14, fontWeight: '700', color: Colors.text },
   workerCategory: { fontSize: 12, color: Colors.textSecondary },
+  workerLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  workerLocationText: { fontSize: 11, color: Colors.textSecondary },
   workerSubRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   workerRating: { fontSize: 11, fontWeight: '600', color: Colors.text },
   dot: { fontSize: 8, color: Colors.textMuted },
