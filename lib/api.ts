@@ -87,6 +87,10 @@ export interface Worker {
   barangay?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  worker_live_latitude?: number | null;
+  worker_live_longitude?: number | null;
+  travel_distance_from_prev_km?: number | null;
+  estimated_transit_minutes?: number | null;
   category: string;
   rating: number;
   reviews: number;
@@ -161,6 +165,10 @@ export interface Booking {
   barangay?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  worker_live_latitude?: number | null;
+  worker_live_longitude?: number | null;
+  travel_distance_from_prev_km?: number | null;
+  estimated_transit_minutes?: number | null;
   notes: string | null;
   status: 'new' | 'accepted' | 'en_route' | 'in_progress' | 'completed' | 'cancelled' | 'declined';
   price: number | null;

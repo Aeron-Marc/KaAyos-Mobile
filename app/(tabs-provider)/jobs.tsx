@@ -11,6 +11,7 @@ import { JobPhotoModal } from '@/components/job-photo-modal';
 import { PhotoViewerModal } from '@/components/photo-viewer-modal';
 import { ScopeAmendmentModal } from '@/components/scope-amendment-modal';
 import { BillOfMaterialsModal, type MaterialItem } from '@/components/bill-of-materials-modal';
+import { InAppMapModal } from '@/components/in-app-map-modal';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -46,6 +47,14 @@ export default function JobsScreen() {
   const [amendmentVisible, setAmendmentVisible] = useState(false);
   const [amendmentJob, setAmendmentJob] = useState<Booking | null>(null);
   const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
+
+  const [mapBooking, setMapBooking] = useState<Booking | null>(null);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+
+  const handleOpenMap = (job: Booking) => {
+    setMapBooking(job);
+    setMapModalVisible(true);
+  };
 
   const toggleExpandJob = (id: number) => {
     setExpandedJobId(prev => (prev === id ? null : id));
@@ -442,12 +451,20 @@ export default function JobsScreen() {
                     </Text>
                   </View>
 
-                  <View style={styles.infoRow}>
-                    <Ionicons name="location-outline" size={15} color={Colors.icon} />
-                    <Text style={styles.infoText} numberOfLines={2}>
+                  <TouchableOpacity
+                    style={[styles.infoRow, styles.locationInteractiveRow]}
+                    onPress={() => handleOpenMap(job)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="location-sharp" size={15} color={Colors.primary} />
+                    <Text style={[styles.infoText, styles.locationLinkText]} numberOfLines={2}>
                       {job.address}
                     </Text>
-                  </View>
+                    <View style={styles.mapPill}>
+                      <Ionicons name="map-outline" size={12} color={Colors.primary} />
+                      <Text style={styles.mapPillText}>Map</Text>
+                    </View>
+                  </TouchableOpacity>
 
                   {job.other_phone && (
                     <View style={styles.infoRow}>
@@ -599,15 +616,15 @@ export default function JobsScreen() {
                     </View>
                   )}
 
-                  {/* Status: en_route -> Navigation + Arrived */}
+                  {/* Status: en_route -> In-App Map Navigation + Arrived */}
                   {job.status === 'en_route' && (
                     <View style={styles.twoBtnRow}>
                       <PressableScale
                         style={[styles.btn, styles.mapsBtn]}
-                        onPress={() => handleOpenNavigation(job.address)}
+                        onPress={() => handleOpenMap(job)}
                       >
-                        <Ionicons name="map-outline" size={16} color="#1e40af" />
-                        <Text style={styles.mapsBtnText}>Open in Maps</Text>
+                        <Ionicons name="map" size={16} color="#1e40af" />
+                        <Text style={styles.mapsBtnText}>In-App Map</Text>
                       </PressableScale>
                       <PressableScale
                         style={[styles.btn, styles.primaryBtn]}
@@ -811,6 +828,18 @@ export default function JobsScreen() {
         address={viewingJob?.address}
         barangay={viewingJob?.barangay}
       />
+
+      {/* In-App Interactive Map & Live Navigation Modal */}
+      <InAppMapModal
+        visible={mapModalVisible}
+        onClose={() => {
+          setMapModalVisible(false);
+          setMapBooking(null);
+        }}
+        booking={mapBooking}
+        userRole="worker"
+        onArrivedStartWork={handleStartWork}
+      />
     </View>
   );
 }
@@ -936,4 +965,33 @@ const styles = StyleSheet.create({
   contactLinksRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, paddingTop: 4 },
   chatLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 4 },
   chatLinkText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
+  locationInteractiveRow: {
+    backgroundColor: '#f8fafc',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  locationLinkText: {
+    flex: 1,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  mapPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  mapPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
 });

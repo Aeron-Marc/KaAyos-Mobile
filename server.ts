@@ -583,6 +583,7 @@ app.get('/api/bookings', authenticateToken, async (req: Request, res: Response):
       `SELECT b.id, b.booking_ref, b.worker_id, b.client_id, b.service_category, b.scheduled_at, b.address,
               b.house_no, b.barangay, b.latitude, b.longitude, b.notes, b.status, b.price,
               b.property_type, b.pricing_type, b.estimated_duration_hours, b.complexity_level,
+              b.worker_live_latitude, b.worker_live_longitude, b.travel_distance_from_prev_km, b.estimated_transit_minutes,
               b.reschedule_requested_by, b.reschedule_proposed_at, b.reschedule_reason, b.reschedule_status,
               b.completion_requested_by, b.confirmed_by_worker_at, b.confirmed_by_client_at,
               b.cancellation_reason, b.created_at, b.completed_at, b.cancelled_at,

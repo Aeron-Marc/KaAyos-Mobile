@@ -8,6 +8,7 @@ import type { Category, Worker, Booking } from '@/lib/api';
 import { WorkerCard } from '@/components/worker-card';
 import type { WorkerCardData } from '@/components/worker-card';
 import { SkeletonCard } from '@/components/skeleton';
+import { InAppMapModal } from '@/components/in-app-map-modal';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function HomeScreen() {
@@ -20,6 +21,7 @@ export default function HomeScreen() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -136,11 +138,11 @@ export default function HomeScreen() {
       {activeBooking && (
         <TouchableOpacity
           style={styles.activeBanner}
-          onPress={() => router.push('/(tabs)/bookings')}
+          onPress={() => setMapModalVisible(true)}
           activeOpacity={0.8}
         >
           <View style={styles.activeBannerIconBox}>
-            <Ionicons name="flash" size={15} color="#d97706" />
+            <Ionicons name="location" size={16} color="#d97706" />
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.activeBannerTopRow}>
@@ -156,10 +158,10 @@ export default function HomeScreen() {
               </View>
             </View>
             <Text style={styles.activeBannerSub} numberOfLines={1}>
-              {new Date(activeBooking.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • Tap to view tracking
+              {new Date(activeBooking.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • Tap to view in-app tracking map
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+          <Ionicons name="map-outline" size={17} color={Colors.primary} />
         </TouchableOpacity>
       )}
 
@@ -239,6 +241,14 @@ export default function HomeScreen() {
         ))
       )}
       <View style={{ height: 24 }} />
+
+      {/* Contextual In-App Tracking Map Modal */}
+      <InAppMapModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        booking={activeBooking}
+        userRole="client"
+      />
     </ScrollView>
   );
 }

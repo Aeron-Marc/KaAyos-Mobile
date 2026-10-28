@@ -12,6 +12,7 @@ import { PhotoViewerModal } from '@/components/photo-viewer-modal';
 import { ReviewModal } from '@/components/review-modal';
 import { BillOfMaterialsModal, type MaterialItem } from '@/components/bill-of-materials-modal';
 import { WarrantyRecallModal } from '@/components/warranty-recall-modal';
+import { InAppMapModal } from '@/components/in-app-map-modal';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -54,6 +55,14 @@ export default function BookingsScreen() {
   const [rescheduleMode, setRescheduleMode] = useState<'request' | 'respond'>('request');
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const [mapBooking, setMapBooking] = useState<Booking | null>(null);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+
+  const handleOpenMap = (booking: Booking) => {
+    setMapBooking(booking);
+    setMapModalVisible(true);
+  };
 
   const toggleExpand = (id: number) => {
     setExpandedId(prev => (prev === id ? null : id));
@@ -379,12 +388,20 @@ export default function BookingsScreen() {
                     </Text>
                   </View>
 
-                  <View style={styles.infoRow}>
-                    <Ionicons name="location-outline" size={15} color={Colors.icon} />
-                    <Text style={styles.infoText} numberOfLines={2}>
+                  <TouchableOpacity
+                    style={[styles.infoRow, styles.locationInteractiveRow]}
+                    onPress={() => handleOpenMap(booking)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="location-sharp" size={15} color={Colors.primary} />
+                    <Text style={[styles.infoText, styles.locationLinkText]} numberOfLines={2}>
                       {booking.address}
                     </Text>
-                  </View>
+                    <View style={styles.mapPill}>
+                      <Ionicons name="map-outline" size={12} color={Colors.primary} />
+                      <Text style={styles.mapPillText}>Map</Text>
+                    </View>
+                  </TouchableOpacity>
 
                   {booking.price && (
                     <View style={styles.infoRow}>
@@ -500,6 +517,17 @@ export default function BookingsScreen() {
 
                 {/* Card Action Buttons */}
                 <View style={styles.cardActions}>
+                  {/* In-App Map Tracking Action */}
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.mapActionBtn]}
+                    onPress={() => handleOpenMap(booking)}
+                  >
+                    <Ionicons name="map" size={16} color={Colors.primary} />
+                    <Text style={[styles.actionBtnText, { color: Colors.primary, fontWeight: '700' }]}>
+                      {booking.status === 'en_route' ? 'Track Live' : 'View on Map'}
+                    </Text>
+                  </TouchableOpacity>
+
                   {/* Chat Action */}
                   <TouchableOpacity
                     style={styles.actionBtn}
@@ -677,6 +705,17 @@ export default function BookingsScreen() {
         address={viewingBooking?.address}
         barangay={viewingBooking?.barangay}
       />
+
+      {/* In-App Interactive Map & Worker Tracking Modal */}
+      <InAppMapModal
+        visible={mapModalVisible}
+        onClose={() => {
+          setMapModalVisible(false);
+          setMapBooking(null);
+        }}
+        booking={mapBooking}
+        userRole="client"
+      />
     </View>
   );
 }
@@ -784,4 +823,34 @@ const styles = StyleSheet.create({
   actionBtnText: { fontSize: 12, fontWeight: '600', color: Colors.text },
   cancelBtn: { borderColor: '#fee2e2', backgroundColor: '#fff5f5' },
   reviewBtn: { borderColor: '#fef3c7', backgroundColor: '#fffdf5' },
+  mapActionBtn: { borderColor: '#bfdbfe', backgroundColor: '#eff6ff' },
+  locationInteractiveRow: {
+    backgroundColor: '#f8fafc',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  locationLinkText: {
+    flex: 1,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  mapPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  mapPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
 });

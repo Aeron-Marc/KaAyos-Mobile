@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
@@ -207,6 +207,16 @@ export default function MapScreen() {
 
             <View style={styles.actionRow}>
               <TouchableOpacity
+                style={styles.googleMapsIconBtn}
+                onPress={() => {
+                  const loc = selectedWorker.barangay || selectedWorker.city || 'Tuy, Batangas';
+                  Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc + ', Tuy, Batangas')}`);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="navigate-circle-outline" size={20} color="#15803d" />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.profileBtn}
                 onPress={() => router.push(`/worker/${selectedWorker.id}`)}
               >
@@ -265,6 +275,7 @@ const styles = StyleSheet.create({
   priceText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
   locationBadge: { fontSize: 11, color: Colors.textSecondary },
   actionRow: { flexDirection: 'row', gap: 10 },
+  googleMapsIconBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: '#bbf7d0', backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
   profileBtn: { flex: 1, height: 44, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
   profileBtnText: { fontSize: 13, fontWeight: '600', color: Colors.text },
   bookBtn: { flex: 1.3, height: 44, borderRadius: 12, backgroundColor: Colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
