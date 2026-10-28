@@ -1,6 +1,6 @@
 export const SERVER_HOST = '192.168.1.13';
 export const SERVER_PORT = 3000;
-export const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
+export const SERVER_URL = process.env.EXPO_PUBLIC_API_URL || `http://${SERVER_HOST}:${SERVER_PORT}`;
 export const API_BASE = `${SERVER_URL}/api`;
 
 let authToken: string | null = null;
@@ -396,14 +396,74 @@ export async function respondReschedule(
 
 export async function uploadBookingPhoto(
   bookingId: number,
-  file: FormData
+  fileOrUri: FormData | string,
+  caption?: string
 ): Promise<{ success: boolean; msg: string; photo: BookingPhoto }> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'ngrok-skip-browser-warning': 'true',
+  };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+  // If a file URI string is provided, use resilient dual upload strategy
+  if (typeof fileOrUri === 'string') {
+    const uri = fileOrUri;
+    const filename = uri.split('/').pop() || 'completion-proof.jpg';
+
+    // 1. Try modern Blob FormData first
+    try {
+      const res = await fetch(uri);
+      const blob = await res.blob();
+      const fd = new FormData();
+      fd.append('file', blob, filename);
+      if (caption) fd.append('caption', caption);
+
+      const response = await fetch(`${API_BASE}/bookings/${bookingId}/photo`, {
+        method: 'POST',
+        headers,
+        body: fd,
+      });
+      const data = await response.json();
+      if (response.ok) return data;
+    } catch (e: any) {
+      console.warn('FormData blob upload error, falling back to base64:', e?.message);
+    }
+
+    // 2. Base64 JSON fallback (completely immune to Unsupported FormDataPart)
+    try {
+      const res = await fetch(uri);
+      const blob = await res.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const response = await fetch(`${API_BASE}/bookings/${bookingId}/photo`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64: base64,
+          caption: caption || '',
+          filename,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Photo upload failed');
+      return data;
+    } catch (e: any) {
+      throw new Error(e.message || 'Photo upload failed');
+    }
+  }
+
+  // If already a FormData object
   const response = await fetch(`${API_BASE}/bookings/${bookingId}/photo`, {
     method: 'POST',
     headers,
-    body: file,
+    body: fileOrUri,
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Photo upload failed');

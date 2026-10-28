@@ -8,6 +8,7 @@ import type { Booking } from '@/lib/api';
 import { PressableScale } from '@/components/pressable-scale';
 import { RescheduleModal } from '@/components/reschedule-modal';
 import { JobPhotoModal } from '@/components/job-photo-modal';
+import { PhotoViewerModal } from '@/components/photo-viewer-modal';
 import { ScopeAmendmentModal } from '@/components/scope-amendment-modal';
 import { BillOfMaterialsModal, type MaterialItem } from '@/components/bill-of-materials-modal';
 import { useToast } from '@/components/toast';
@@ -35,6 +36,9 @@ export default function JobsScreen() {
   const [selectedJob, setSelectedJob] = useState<Booking | null>(null);
 
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [viewingPhotoCaption, setViewingPhotoCaption] = useState<string | null>(null);
+  const [viewingJob, setViewingJob] = useState<Booking | null>(null);
   const [bomVisible, setBomVisible] = useState(false);
   const [bomJob, setBomJob] = useState<Booking | null>(null);
   const [bomItems, setBomItems] = useState<MaterialItem[]>([]);
@@ -213,10 +217,10 @@ export default function JobsScreen() {
     setPhotoModalVisible(true);
   };
 
-  const handlePhotoUploaded = async (formData: FormData, caption: string) => {
+  const handlePhotoUploaded = async (formData: FormData, caption: string, imageUri?: string) => {
     if (!selectedJob) return;
     try {
-      await api.uploadBookingPhoto(selectedJob.id, formData);
+      await api.uploadBookingPhoto(selectedJob.id, imageUri || formData, caption);
       const res = await api.confirmBookingCompletion(selectedJob.id);
       showToast(res.msg, 'success');
       fetchJobs();
@@ -535,7 +539,17 @@ export default function JobsScreen() {
                     <Text style={styles.photosTitle}>Job Photos ({job.photos.length})</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ gap: 8 }}>
                       {job.photos.map(p => (
-                        <Image key={p.id} source={{ uri: p.url }} style={styles.photoThumb} />
+                        <TouchableOpacity
+                          key={p.id}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setViewingPhoto(p.url);
+                            setViewingPhotoCaption(p.caption);
+                            setViewingJob(job);
+                          }}
+                        >
+                          <Image source={{ uri: p.url }} style={styles.photoThumb} />
+                        </TouchableOpacity>
                       ))}
                     </ScrollView>
                   </View>
@@ -777,10 +791,26 @@ export default function JobsScreen() {
             setPhotoModalVisible(false);
             setSelectedJob(null);
           }}
-          bookingId={selectedJob.id}
+          booking={selectedJob}
           onPhotoUploaded={handlePhotoUploaded}
         />
       )}
+
+      {/* Shopee-style Geotag Photo Proof Full-screen Viewer */}
+      <PhotoViewerModal
+        visible={!!viewingPhoto}
+        onClose={() => {
+          setViewingPhoto(null);
+          setViewingPhotoCaption(null);
+          setViewingJob(null);
+        }}
+        photoUrl={viewingPhoto}
+        caption={viewingPhotoCaption}
+        jobRef={viewingJob?.booking_ref || (viewingJob ? String(viewingJob.id).padStart(4, '0') : null)}
+        serviceCategory={viewingJob?.service_category}
+        address={viewingJob?.address}
+        barangay={viewingJob?.barangay}
+      />
     </View>
   );
 }

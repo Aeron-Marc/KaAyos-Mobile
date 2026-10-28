@@ -8,6 +8,7 @@ import type { Booking } from '@/lib/api';
 import { PressableScale } from '@/components/pressable-scale';
 import { PromptModal } from '@/components/prompt-modal';
 import { RescheduleModal } from '@/components/reschedule-modal';
+import { PhotoViewerModal } from '@/components/photo-viewer-modal';
 import { ReviewModal } from '@/components/review-modal';
 import { BillOfMaterialsModal, type MaterialItem } from '@/components/bill-of-materials-modal';
 import { WarrantyRecallModal } from '@/components/warranty-recall-modal';
@@ -32,6 +33,9 @@ export default function BookingsScreen() {
 
   // Modals state
   const [promptVisible, setPromptVisible] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [viewingPhotoCaption, setViewingPhotoCaption] = useState<string | null>(null);
+  const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [promptType, setPromptType] = useState<'review' | 'report'>('report');
   const [promptBooking, setPromptBooking] = useState<Booking | null>(null);
 
@@ -478,7 +482,17 @@ export default function BookingsScreen() {
                     <Text style={styles.photosTitle}>Proof Photos ({booking.photos.length})</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ gap: 8 }}>
                       {booking.photos.map(p => (
-                        <Image key={p.id} source={{ uri: p.url }} style={styles.photoThumb} />
+                        <TouchableOpacity
+                          key={p.id}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setViewingPhoto(p.url);
+                            setViewingPhotoCaption(p.caption);
+                            setViewingBooking(booking);
+                          }}
+                        >
+                          <Image source={{ uri: p.url }} style={styles.photoThumb} />
+                        </TouchableOpacity>
                       ))}
                     </ScrollView>
                   </View>
@@ -646,6 +660,22 @@ export default function BookingsScreen() {
           setPromptVisible(false);
           setPromptBooking(null);
         }}
+      />
+
+      {/* Shopee-style Geotag Photo Proof Full-screen Viewer */}
+      <PhotoViewerModal
+        visible={!!viewingPhoto}
+        onClose={() => {
+          setViewingPhoto(null);
+          setViewingPhotoCaption(null);
+          setViewingBooking(null);
+        }}
+        photoUrl={viewingPhoto}
+        caption={viewingPhotoCaption}
+        jobRef={viewingBooking?.booking_ref || (viewingBooking ? String(viewingBooking.id).padStart(4, '0') : null)}
+        serviceCategory={viewingBooking?.service_category}
+        address={viewingBooking?.address}
+        barangay={viewingBooking?.barangay}
       />
     </View>
   );
