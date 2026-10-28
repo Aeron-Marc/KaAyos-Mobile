@@ -408,13 +408,6 @@ export function InAppMapModal({
                 <Ionicons name="car-outline" size={14} color="#fff" />
                 <Text style={styles.etaPillText}>~{displayEta} min ({displayDistance} km)</Text>
               </View>
-
-              {isOsrmSnapped && (
-                <View style={styles.osrmIndicatorBadge}>
-                  <Ionicons name="git-commit-outline" size={11} color="#15803d" />
-                  <Text style={styles.osrmIndicatorText}>OSRM Pathing</Text>
-                </View>
-              )}
             </View>
           </View>
         </View>
@@ -428,12 +421,6 @@ export function InAppMapModal({
             <View style={{ flex: 1 }}>
               <View style={styles.addressHeaderRow}>
                 <Text style={styles.addressLabel}>Service Address</Text>
-                {isOsrmSnapped ? (
-                  <View style={styles.osrmRoadChip}>
-                    <Ionicons name="navigate" size={11} color="#2563eb" />
-                    <Text style={styles.osrmRoadChipText}>Road Snapped</Text>
-                  </View>
-                ) : null}
               </View>
 
               <Text style={styles.addressText} numberOfLines={2}>
@@ -578,27 +565,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  osrmIndicatorBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#f0fdf4',
-    borderWidth: 1,
-    borderColor: '#86efac',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  osrmIndicatorText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#15803d',
-  },
   bottomCard: {
     padding: 18,
     backgroundColor: '#ffffff',
@@ -637,22 +603,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  osrmRoadChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  osrmRoadChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#2563eb',
   },
   addressText: {
     fontSize: 14,
