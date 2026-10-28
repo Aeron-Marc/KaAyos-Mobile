@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   TextInput,
@@ -11,6 +11,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  TextInputProps,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,72 @@ import * as api from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 
 type RegisterRole = 'client' | 'provider';
+
+interface FormInputProps extends TextInputProps {
+  label: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  rightElement?: React.ReactNode;
+}
+
+const FormInput = React.forwardRef<any, FormInputProps>(
+  ({ label, icon, rightElement, style, ...props }, ref) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const innerRef = useRef<any>(null);
+
+    const handleBoxPress = () => {
+      if (ref && 'current' in ref && ref.current) {
+        ref.current.focus();
+      } else if (innerRef.current) {
+        innerRef.current.focus();
+      }
+    };
+
+    return (
+      <View style={styles.field}>
+        <Text style={styles.label}>{label}</Text>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={handleBoxPress}
+          style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}
+        >
+          {icon && (
+            <Ionicons
+              name={icon}
+              size={18}
+              color={isFocused ? '#1A6FC4' : '#6E7A88'}
+              style={styles.inputIcon}
+            />
+          )}
+          <TextInput
+            ref={(node) => {
+              innerRef.current = node;
+              if (typeof ref === 'function') {
+                ref(node);
+              } else if (ref && 'current' in ref) {
+                (ref as React.MutableRefObject<any>).current = node;
+              }
+            }}
+            placeholderTextColor="#A8AFB8"
+            cursorColor="#1A6FC4"
+            selectionColor="rgba(26, 111, 196, 0.3)"
+            style={[styles.input, style]}
+            onFocus={(e) => {
+              setIsFocused(true);
+              props.onFocus?.(e);
+            }}
+            onBlur={(e) => {
+              setIsFocused(false);
+              props.onBlur?.(e);
+            }}
+            {...props}
+          />
+          {rightElement}
+        </TouchableOpacity>
+      </View>
+    );
+  }
+);
+FormInput.displayName = 'FormInput';
 
 export default function RegisterScreen() {
   const [role, setRole] = useState<RegisterRole>('client');
@@ -31,9 +98,15 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
+
+  // Input refs for smooth keyboard next navigation
+  const lastNameRef = useRef<any>(null);
+  const emailRef = useRef<any>(null);
+  const phoneRef = useRef<any>(null);
+  const passwordRef = useRef<any>(null);
+  const confirmPasswordRef = useRef<any>(null);
 
   const handleCreateAccount = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
@@ -76,6 +149,9 @@ export default function RegisterScreen() {
     setLoading(false);
   };
 
+  const KeyboardWrapper = Platform.OS === 'ios' ? KeyboardAvoidingView : View;
+  const keyboardProps = Platform.OS === 'ios' ? { behavior: 'padding' as const, style: styles.flex } : { style: styles.flex };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Floating Background Icons (Matching KaAyos Web) */}
@@ -88,9 +164,12 @@ export default function RegisterScreen() {
         <Ionicons name="star-outline" size={36} color="#FFFFFF" style={[styles.bgIcon, { bottom: '6%', right: '8%' }]} />
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          
+      <KeyboardWrapper {...keyboardProps}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Brand Header */}
           <View style={styles.brandHeader}>
             <Image
@@ -183,105 +262,72 @@ export default function RegisterScreen() {
 
             {/* Name Fields (2 Columns like Web grid-2) */}
             <View style={styles.grid2}>
-              <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>First name</Text>
-                <View style={[styles.inputWrap, focusedField === 'firstName' && styles.inputWrapFocused]}>
-                  <TextInput
-                    placeholder="Juan"
-                    placeholderTextColor="#A8AFB8"
-                    style={styles.input}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    onFocus={() => setFocusedField('firstName')}
-                    onBlur={() => setFocusedField(null)}
-                  />
-                </View>
+              <View style={{ flex: 1 }}>
+                <FormInput
+                  label="First name"
+                  placeholder="Juan"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                  onSubmitEditing={() => lastNameRef.current?.focus()}
+                />
               </View>
 
-              <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Last name</Text>
-                <View style={[styles.inputWrap, focusedField === 'lastName' && styles.inputWrapFocused]}>
-                  <TextInput
-                    placeholder="dela Cruz"
-                    placeholderTextColor="#A8AFB8"
-                    style={styles.input}
-                    value={lastName}
-                    onChangeText={setLastName}
-                    onFocus={() => setFocusedField('lastName')}
-                    onBlur={() => setFocusedField(null)}
-                  />
-                </View>
+              <View style={{ flex: 1 }}>
+                <FormInput
+                  ref={lastNameRef}
+                  label="Last name"
+                  placeholder="dela Cruz"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                  onSubmitEditing={() => emailRef.current?.focus()}
+                />
               </View>
             </View>
 
             {/* Email Field */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Email address</Text>
-              <View style={[styles.inputWrap, focusedField === 'email' && styles.inputWrapFocused]}>
-                <Ionicons
-                  name="mail-outline"
-                  size={19}
-                  color={focusedField === 'email' ? '#1A6FC4' : '#6E7A88'}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="you@example.com"
-                  placeholderTextColor="#A8AFB8"
-                  style={styles.input}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                />
-              </View>
-            </View>
+            <FormInput
+              ref={emailRef}
+              label="Email address"
+              icon="mail-outline"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
+              returnKeyType="next"
+              onSubmitEditing={() => phoneRef.current?.focus()}
+            />
 
             {/* Phone Number Field */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Mobile phone number</Text>
-              <View style={[styles.inputWrap, focusedField === 'phone' && styles.inputWrapFocused]}>
-                <Ionicons
-                  name="call-outline"
-                  size={19}
-                  color={focusedField === 'phone' ? '#1A6FC4' : '#6E7A88'}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="0912 345 6789"
-                  placeholderTextColor="#A8AFB8"
-                  style={styles.input}
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
-                  onFocus={() => setFocusedField('phone')}
-                  onBlur={() => setFocusedField(null)}
-                />
-              </View>
-            </View>
+            <FormInput
+              ref={phoneRef}
+              label="Mobile phone number"
+              icon="call-outline"
+              placeholder="0912 345 6789"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
 
             {/* Password Field */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Password (minimum 8 characters)</Text>
-              <View style={[styles.inputWrap, focusedField === 'password' && styles.inputWrapFocused]}>
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={19}
-                  color={focusedField === 'password' ? '#1A6FC4' : '#6E7A88'}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Create a strong password"
-                  placeholderTextColor="#A8AFB8"
-                  style={[styles.input, { paddingRight: 40 }]}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                />
+            <FormInput
+              ref={passwordRef}
+              label="Password (min. 8 characters)"
+              icon="lock-closed-outline"
+              placeholder="Create a strong password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="next"
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+              rightElement={
                 <TouchableOpacity
                   style={styles.eyeBtn}
                   onPress={() => setShowPassword(!showPassword)}
@@ -289,33 +335,25 @@ export default function RegisterScreen() {
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={19}
+                    size={18}
                     color="#6E7A88"
                   />
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
             {/* Confirm Password Field */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Confirm password</Text>
-              <View style={[styles.inputWrap, focusedField === 'confirmPassword' && styles.inputWrapFocused]}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={19}
-                  color={focusedField === 'confirmPassword' ? '#1A6FC4' : '#6E7A88'}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Re-enter your password"
-                  placeholderTextColor="#A8AFB8"
-                  style={[styles.input, { paddingRight: 40 }]}
-                  secureTextEntry={!showConfirmPassword}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  onFocus={() => setFocusedField('confirmPassword')}
-                  onBlur={() => setFocusedField(null)}
-                />
+            <FormInput
+              ref={confirmPasswordRef}
+              label="Confirm password"
+              icon="shield-checkmark-outline"
+              placeholder="Re-enter your password"
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleCreateAccount}
+              rightElement={
                 <TouchableOpacity
                   style={styles.eyeBtn}
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -323,12 +361,12 @@ export default function RegisterScreen() {
                 >
                   <Ionicons
                     name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={19}
+                    size={18}
                     color="#6E7A88"
                   />
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
             {/* Terms Note */}
             <Text style={styles.termsText}>
@@ -358,7 +396,7 @@ export default function RegisterScreen() {
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardWrapper>
     </SafeAreaView>
   );
 }
@@ -578,24 +616,19 @@ const styles = StyleSheet.create({
   inputWrapFocused: {
     borderColor: '#1A6FC4',
     backgroundColor: '#FBFDFF',
-    shadowColor: '#1A6FC4',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 1,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   input: {
     flex: 1,
     height: '100%',
     fontSize: 14,
     color: '#202B36',
+    paddingVertical: 0,
   },
   eyeBtn: {
-    position: 'absolute',
-    right: 12,
+    paddingHorizontal: 6,
     height: '100%',
     justifyContent: 'center',
   },

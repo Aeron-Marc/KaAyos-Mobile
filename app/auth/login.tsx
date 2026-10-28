@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   TextInput,
@@ -11,6 +11,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  TextInputProps,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,14 +20,81 @@ import { PressableScale } from '@/components/pressable-scale';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 
+interface FormInputProps extends TextInputProps {
+  label: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  rightElement?: React.ReactNode;
+}
+
+const FormInput = React.forwardRef<any, FormInputProps>(
+  ({ label, icon, rightElement, style, ...props }, ref) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const innerRef = useRef<any>(null);
+
+    const handleBoxPress = () => {
+      if (ref && 'current' in ref && ref.current) {
+        ref.current.focus();
+      } else if (innerRef.current) {
+        innerRef.current.focus();
+      }
+    };
+
+    return (
+      <View style={styles.field}>
+        <Text style={styles.label}>{label}</Text>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={handleBoxPress}
+          style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}
+        >
+          {icon && (
+            <Ionicons
+              name={icon}
+              size={18}
+              color={isFocused ? '#1A6FC4' : '#6E7A88'}
+              style={styles.inputIcon}
+            />
+          )}
+          <TextInput
+            ref={(node) => {
+              innerRef.current = node;
+              if (typeof ref === 'function') {
+                ref(node);
+              } else if (ref && 'current' in ref) {
+                (ref as React.MutableRefObject<any>).current = node;
+              }
+            }}
+            placeholderTextColor="#A8AFB8"
+            cursorColor="#1A6FC4"
+            selectionColor="rgba(26, 111, 196, 0.3)"
+            style={[styles.input, style]}
+            onFocus={(e) => {
+              setIsFocused(true);
+              props.onFocus?.(e);
+            }}
+            onBlur={(e) => {
+              setIsFocused(false);
+              props.onBlur?.(e);
+            }}
+            {...props}
+          />
+          {rightElement}
+        </TouchableOpacity>
+      </View>
+    );
+  }
+);
+FormInput.displayName = 'FormInput';
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
+
+  const passwordRef = useRef<any>(null);
 
   const handleSignIn = async () => {
     if (!email.trim() || !password.trim()) {
@@ -71,6 +139,9 @@ export default function LoginScreen() {
     );
   };
 
+  const KeyboardWrapper = Platform.OS === 'ios' ? KeyboardAvoidingView : View;
+  const keyboardProps = Platform.OS === 'ios' ? { behavior: 'padding' as const, style: styles.flex } : { style: styles.flex };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Floating Background Icons (Matching KaAyos Web) */}
@@ -83,9 +154,12 @@ export default function LoginScreen() {
         <Ionicons name="star-outline" size={38} color="#FFFFFF" style={[styles.bgIcon, { bottom: '8%', right: '10%' }]} />
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          
+      <KeyboardWrapper {...keyboardProps}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Brand Header */}
           <View style={styles.brandHeader}>
             <Image
@@ -106,50 +180,31 @@ export default function LoginScreen() {
             </View>
 
             {/* Email Field */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Email address</Text>
-              <View style={[styles.inputWrap, focusedField === 'email' && styles.inputWrapFocused]}>
-                <Ionicons
-                  name="mail-outline"
-                  size={19}
-                  color={focusedField === 'email' ? '#1A6FC4' : '#6E7A88'}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="you@example.com"
-                  placeholderTextColor="#A8AFB8"
-                  style={styles.input}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                />
-              </View>
-            </View>
+            <FormInput
+              label="Email address"
+              icon="mail-outline"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={email}
+              onChangeText={setEmail}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
 
             {/* Password Field */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Password</Text>
-              <View style={[styles.inputWrap, focusedField === 'password' && styles.inputWrapFocused]}>
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={19}
-                  color={focusedField === 'password' ? '#1A6FC4' : '#6E7A88'}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Enter your password"
-                  placeholderTextColor="#A8AFB8"
-                  style={[styles.input, { paddingRight: 40 }]}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                />
+            <FormInput
+              ref={passwordRef}
+              label="Password"
+              icon="lock-closed-outline"
+              placeholder="Enter your password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleSignIn}
+              rightElement={
                 <TouchableOpacity
                   style={styles.eyeBtn}
                   onPress={() => setShowPassword(!showPassword)}
@@ -157,12 +212,12 @@ export default function LoginScreen() {
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={19}
+                    size={18}
                     color="#6E7A88"
                   />
                 </TouchableOpacity>
-              </View>
-            </View>
+              }
+            />
 
             {/* Options Row: Remember Me & Forgot Password */}
             <View style={styles.rowBetween}>
@@ -207,7 +262,7 @@ export default function LoginScreen() {
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardWrapper>
     </SafeAreaView>
   );
 }
@@ -309,24 +364,19 @@ const styles = StyleSheet.create({
   inputWrapFocused: {
     borderColor: '#1A6FC4',
     backgroundColor: '#FBFDFF',
-    shadowColor: '#1A6FC4',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 1,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   input: {
     flex: 1,
     height: '100%',
     fontSize: 14.5,
     color: '#202B36',
+    paddingVertical: 0,
   },
   eyeBtn: {
-    position: 'absolute',
-    right: 12,
+    paddingHorizontal: 6,
     height: '100%',
     justifyContent: 'center',
   },
