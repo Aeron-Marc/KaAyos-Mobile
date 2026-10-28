@@ -403,10 +403,9 @@ app.get('/api/workers', async (req: Request, res: Response): Promise<any> => {
         COALESCE(wp.average_rating, 0) AS avg_rating,
         COALESCE(wp.government_id_verified, 0) AS government_id_verified,
         wp.hourly_rate,
-        COUNT(DISTINCT b.id) AS job_count
+        (SELECT COUNT(*) FROM bookings b WHERE b.worker_id = u.id AND b.status = 'completed') AS job_count
       FROM users u
       LEFT JOIN worker_profiles wp ON wp.user_id = u.id
-      LEFT JOIN bookings b ON b.worker_id = u.id AND b.status = 'completed'
       WHERE u.role = 'worker'
     `;
     const params: any[] = [];
@@ -419,7 +418,7 @@ app.get('/api/workers', async (req: Request, res: Response): Promise<any> => {
       const term = `%${search}%`;
       params.push(term, term);
     }
-    query += ' GROUP BY u.id, wp.average_rating, wp.government_id_verified ORDER BY avg_rating DESC';
+    query += ' ORDER BY avg_rating DESC';
 
     const [rows]: any = await pool.query(query, params);
 
