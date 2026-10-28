@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -7,43 +7,17 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
-  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import type { Booking } from '@/lib/api';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { TUY_BARANGAY_CENTROIDS } from '@/lib/api';
 
 const TUY_LAT = 14.0242;
 const TUY_LNG = 120.7302;
-
-export const TUY_BARANGAY_CENTROIDS: Record<string, [number, number]> = {
-  'Acle': [14.0051, 120.7477],
-  'Bayudbud': [14.0555, 120.7363],
-  'Bolbok': [14.0215, 120.7582],
-  'Burgos': [14.0162, 120.7301],
-  'Dalima': [14.0339, 120.6950],
-  'Dao': [13.9996, 120.7547],
-  'Guinhawa': [13.9823, 120.7268],
-  'Lumbangan': [14.0245, 120.7150],
-  'Luna': [14.0192, 120.7353],
-  'Luntal': [14.0314, 120.7129],
-  'Magahis': [14.0429, 120.7532],
-  'Malibu': [13.9956, 120.7058],
-  'Mataywanac': [14.0394, 120.7393],
-  'Palincaro': [14.0096, 120.7045],
-  'Putol': [13.9930, 120.7281],
-  'Rillo': [14.0163, 120.7258],
-  'Rizal': [14.0187, 120.7289],
-  'Sabang': [14.0576, 120.7080],
-  'San Jose': [14.0236, 120.7820],
-  'Talon': [14.0179, 120.6986],
-  'Toong': [14.0492, 120.7909],
-  'Tuyon-Tuyon': [14.0044, 120.7297],
-};
 
 // Calculate approximate straight-line distance in km between two coords
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -75,6 +49,17 @@ export function InAppMapModal({
   userRole = 'client',
   onArrivedStartWork,
 }: InAppMapModalProps) {
+  const [roadMetrics, setRoadMetrics] = useState<{
+    distanceKm: number;
+    durationMinutes: number;
+    isOsrm: boolean;
+  } | null>(null);
+
+  // Reset metrics whenever the active booking changes
+  useEffect(() => {
+    setRoadMetrics(null);
+  }, [booking?.id]);
+
   // Resolve Destination (Client / Job Location)
   const destCoords = useMemo<[number, number]>(() => {
     if (!booking) return [TUY_LAT, TUY_LNG];
@@ -123,19 +108,37 @@ export function InAppMapModal({
     return [TUY_LAT, TUY_LNG];
   }, [booking, destCoords]);
 
-  // Estimated distance and travel time
-  const distanceKm = useMemo(() => {
+  // Straight line fallback metrics
+  const fallbackDistanceKm = useMemo(() => {
     const d = getDistanceKm(workerCoords[0], workerCoords[1], destCoords[0], destCoords[1]);
     return Math.max(0.4, Number(d.toFixed(1)));
   }, [workerCoords, destCoords]);
 
-  const etaMinutes = useMemo(() => {
+  const fallbackEtaMinutes = useMemo(() => {
     if (booking?.status === 'in_progress') return 0;
-    // Avg speed in Tuy barangay roads ~ 25 km/h
-    return Math.max(3, Math.round((distanceKm / 25) * 60));
-  }, [distanceKm, booking?.status]);
+    return Math.max(3, Math.round((fallbackDistanceKm / 25) * 60));
+  }, [fallbackDistanceKm, booking?.status]);
 
-  // Leaflet HTML definition
+  // Effective displayed metrics (favoring real OSRM road measurements)
+  const displayDistance = roadMetrics?.distanceKm ?? fallbackDistanceKm;
+  const displayEta = roadMetrics?.durationMinutes ?? fallbackEtaMinutes;
+  const isOsrmSnapped = roadMetrics?.isOsrm ?? false;
+
+  // Receive OSRM road calculation result from WebView Leaflet script
+  const handleWebViewMessage = useCallback((event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'osrm_result') {
+        setRoadMetrics({
+          distanceKm: Number(data.distanceKm),
+          durationMinutes: Number(data.durationMinutes),
+          isOsrm: Boolean(data.isOsrm),
+        });
+      }
+    } catch {}
+  }, []);
+
+  // Leaflet + OSRM HTML definition
   const mapHtml = useMemo(() => {
     if (!booking) return '';
 
@@ -238,18 +241,75 @@ export function InAppMapModal({
             var workerMarker = L.marker(worker, { icon: workerIcon }).addTo(map);
             workerMarker.bindPopup('<div class="popup-content"><div class="popup-title">👷 ' + ${JSON.stringify(workerLabel)} + '</div><div class="popup-sub">Status: ' + ${JSON.stringify(booking.status)} + '</div></div>');
 
-            // Draw route polyline between worker and destination
-            var latlngs = [worker, dest];
-            var polyline = L.polyline(latlngs, {
-              color: '#2563eb',
-              weight: 4,
-              opacity: 0.8,
-              dashArray: '8, 8',
+            // 1. Initial dashed placeholder path while OSRM detects real roads
+            var placeholderLine = L.polyline([worker, dest], {
+              color: '#94a3b8',
+              weight: 3,
+              opacity: 0.6,
+              dashArray: '6, 6',
               lineCap: 'round'
             }).addTo(map);
 
-            var group = new L.featureGroup([destMarker, workerMarker, polyline]);
-            map.fitBounds(group.getBounds(), { padding: [60, 60], maxZoom: 16 });
+            var initialGroup = new L.featureGroup([destMarker, workerMarker, placeholderLine]);
+            map.fitBounds(initialGroup.getBounds(), { padding: [60, 60], maxZoom: 16 });
+
+            // 2. Query OSRM Driving Service for road-snapped pathing
+            var osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' +
+              worker[1] + ',' + worker[0] + ';' + dest[1] + ',' + dest[0] +
+              '?overview=full&geometries=geojson';
+
+            fetch(osrmUrl)
+              .then(function(res) { return res.json(); })
+              .then(function(data) {
+                if (data.code === 'Ok' && data.routes && data.routes[0]) {
+                  var route = data.routes[0];
+                  // GeoJSON coordinates are [lng, lat], map to Leaflet [lat, lng]
+                  var roadPoints = route.geometry.coordinates.map(function(pt) {
+                    return [pt[1], pt[0]];
+                  });
+
+                  // Remove placeholder line
+                  map.removeLayer(placeholderLine);
+
+                  // Outer road highlight glow
+                  var roadGlow = L.polyline(roadPoints, {
+                    color: '#60a5fa',
+                    weight: 8,
+                    opacity: 0.4,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }).addTo(map);
+
+                  // Inner precise driving route
+                  var roadRoute = L.polyline(roadPoints, {
+                    color: '#1d4ed8',
+                    weight: 5,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }).addTo(map);
+
+                  // Re-fit map to the exact road path
+                  var activeGroup = new L.featureGroup([destMarker, workerMarker, roadRoute]);
+                  map.fitBounds(activeGroup.getBounds(), { padding: [60, 60], maxZoom: 16 });
+
+                  var roadDistKm = (route.distance / 1000).toFixed(1);
+                  var roadMinutes = Math.max(2, Math.round(route.duration / 60));
+
+                  // Send OSRM road telemetry back to React Native
+                  if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'osrm_result',
+                      distanceKm: roadDistKm,
+                      durationMinutes: roadMinutes,
+                      isOsrm: true
+                    }));
+                  }
+                }
+              })
+              .catch(function(err) {
+                console.log('OSRM road detection fallback to straight line:', err);
+              });
           } else {
             map.setView(dest, 16);
           }
@@ -325,7 +385,7 @@ export function InAppMapModal({
           ) : null}
         </View>
 
-        {/* ── IN-APP INTERACTIVE LEAFLET MAP ── */}
+        {/* ── IN-APP INTERACTIVE LEAFLET + OSRM MAP ── */}
         <View style={styles.mapContainer}>
           <WebView
             originWhitelist={['*']}
@@ -333,6 +393,7 @@ export function InAppMapModal({
             style={styles.webview}
             javaScriptEnabled={true}
             domStorageEnabled={true}
+            onMessage={handleWebViewMessage}
           />
 
           {/* Floating Status Pill on Top of Map */}
@@ -342,12 +403,19 @@ export function InAppMapModal({
               <Text style={[styles.statusPillText, { color: badge.color }]}>{badge.label}</Text>
             </View>
 
-            {booking.status === 'en_route' && (
+            <View style={styles.topRightPillContainer}>
               <View style={styles.etaPill}>
-                <Ionicons name="time" size={13} color="#fff" />
-                <Text style={styles.etaPillText}>ETA: ~{etaMinutes} min ({distanceKm} km)</Text>
+                <Ionicons name="car-outline" size={14} color="#fff" />
+                <Text style={styles.etaPillText}>~{displayEta} min ({displayDistance} km)</Text>
               </View>
-            )}
+
+              {isOsrmSnapped && (
+                <View style={styles.osrmIndicatorBadge}>
+                  <Ionicons name="git-commit-outline" size={11} color="#15803d" />
+                  <Text style={styles.osrmIndicatorText}>OSRM Pathing</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
@@ -358,7 +426,16 @@ export function InAppMapModal({
               <Ionicons name="location-sharp" size={20} color={Colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressLabel}>Service Address</Text>
+              <View style={styles.addressHeaderRow}>
+                <Text style={styles.addressLabel}>Service Address</Text>
+                {isOsrmSnapped ? (
+                  <View style={styles.osrmRoadChip}>
+                    <Ionicons name="navigate" size={11} color="#2563eb" />
+                    <Text style={styles.osrmRoadChipText}>Road Snapped</Text>
+                  </View>
+                ) : null}
+              </View>
+
               <Text style={styles.addressText} numberOfLines={2}>
                 {booking.house_no ? `${booking.house_no}, ` : ''}
                 {booking.address}
@@ -456,9 +533,13 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     pointerEvents: 'none',
+  },
+  topRightPillContainer: {
+    alignItems: 'flex-end',
+    gap: 4,
   },
   statusPill: {
     flexDirection: 'row',
@@ -497,6 +578,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  osrmIndicatorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  osrmIndicatorText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15803d',
+  },
   bottomCard: {
     padding: 18,
     backgroundColor: '#ffffff',
@@ -514,6 +616,12 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
+  addressHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   addressIconBox: {
     width: 38,
     height: 38,
@@ -529,7 +637,22 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 2,
+  },
+  osrmRoadChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  osrmRoadChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563eb',
   },
   addressText: {
     fontSize: 14,

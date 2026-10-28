@@ -49,6 +49,93 @@ export const TUY_BARANGAYS = [
 
 export type TuyBarangay = typeof TUY_BARANGAYS[number];
 
+export const TUY_BARANGAY_CENTROIDS: Record<string, [number, number]> = {
+  'Acle': [14.0051, 120.7477],
+  'Bayudbud': [14.0555, 120.7363],
+  'Bolbok': [14.0215, 120.7582],
+  'Burgos': [14.0162, 120.7301],
+  'Dalima': [14.0339, 120.6950],
+  'Dao': [13.9996, 120.7547],
+  'Guinhawa': [13.9823, 120.7268],
+  'Lumbangan': [14.0245, 120.7150],
+  'Luna': [14.0192, 120.7353],
+  'Luntal': [14.0314, 120.7129],
+  'Magahis': [14.0429, 120.7532],
+  'Malibu': [13.9956, 120.7058],
+  'Mataywanac': [14.0394, 120.7393],
+  'Palincaro': [14.0096, 120.7045],
+  'Putol': [13.9930, 120.7281],
+  'Rillo': [14.0163, 120.7258],
+  'Rizal': [14.0187, 120.7289],
+  'Sabang': [14.0576, 120.7080],
+  'San Jose': [14.0236, 120.7820],
+  'Talon': [14.0179, 120.6986],
+  'Toong': [14.0492, 120.7909],
+  'Tuyon-Tuyon': [14.0044, 120.7297],
+};
+
+export interface OSRMRouteResult {
+  coordinates: [number, number][];
+  distanceKm: number;
+  durationMinutes: number;
+  isOsrm: boolean;
+}
+
+/**
+ * Fetch road-snapped driving route pathing from Open Source Routing Machine (OSRM).
+ * Converts GeoJSON [lng, lat] into Leaflet [lat, lng].
+ */
+export async function fetchOSRMRoute(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): Promise<OSRMRouteResult> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.code === 'Ok' && data.routes?.[0]) {
+        const route = data.routes[0];
+        const coordinates: [number, number][] = (route.geometry?.coordinates || []).map(
+          (pt: [number, number]) => [pt[1], pt[0]]
+        );
+        return {
+          coordinates,
+          distanceKm: Number((route.distance / 1000).toFixed(1)),
+          durationMinutes: Math.max(2, Math.round(route.duration / 60)),
+          isOsrm: true,
+        };
+      }
+    }
+  } catch (e) {
+    // Graceful fallback
+  }
+
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const straightDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return {
+    coordinates: [[lat1, lng1], [lat2, lng2]],
+    distanceKm: Number(straightDist.toFixed(1)),
+    durationMinutes: Math.max(3, Math.round((straightDist / 25) * 60)),
+    isOsrm: false,
+  };
+}
+
 export interface User {
   id: number;
   name: string;
