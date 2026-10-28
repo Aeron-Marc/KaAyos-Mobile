@@ -19,20 +19,34 @@ export default function HomeScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [cats, wrks, bks] = await Promise.all([
+      const [catsRes, wrksRes, bksRes] = await Promise.allSettled([
         api.getCategories(),
         api.getWorkers(),
-        api.getBookings().catch(() => [] as Booking[]),
+        api.getBookings(),
       ]);
-      setCategories(cats);
-      setWorkers(wrks);
-      const active = (bks || []).find(b => ['in_progress', 'en_route', 'accepted', 'new'].includes(b.status));
-      setActiveBooking(active || null);
+
+      if (catsRes.status === 'fulfilled') {
+        setCategories(catsRes.value);
+      }
+      if (wrksRes.status === 'fulfilled') {
+        setWorkers(wrksRes.value);
+        setFetchError(null);
+      } else {
+        console.error('Failed to fetch workers', wrksRes.reason);
+        setFetchError('Unable to connect to KaAyos server. Please tap Retry or pull down.');
+      }
+
+      if (bksRes.status === 'fulfilled') {
+        const active = (bksRes.value || []).find(b => ['in_progress', 'en_route', 'accepted', 'new'].includes(b.status));
+        setActiveBooking(active || null);
+      }
     } catch (e) {
       console.error('Failed to fetch data', e);
+      setFetchError('Connection error. Please check your internet and tap Retry.');
     }
   }, []);
 
@@ -52,13 +66,15 @@ export default function HomeScreen() {
 
   const filteredWorkers = useMemo(() => {
     return workers.filter(w => {
-      const matchesCategory = !activeCatName || w.category === activeCatName;
+      const matchesCategory = !activeCatName ||
+        (w.category && w.category.toLowerCase() === activeCatName.toLowerCase()) ||
+        (activeCategory && w.category && w.category.toLowerCase() === activeCategory.toLowerCase());
       const matchesSearch = !searchQuery ||
         w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (w.category || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [activeCatName, searchQuery, workers]);
+  }, [activeCatName, activeCategory, searchQuery, workers]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
@@ -189,7 +205,24 @@ export default function HomeScreen() {
         <Text style={styles.sectionMeta}>{filteredWorkers.length} available</Text>
       </View>
 
-      {loading ? (
+      {fetchError && workers.length === 0 ? (
+        <View style={styles.errorStateBox}>
+          <Ionicons name="cloud-offline-outline" size={42} color="#dc2626" />
+          <Text style={styles.errorStateTitle}>Connection Issue</Text>
+          <Text style={styles.errorStateSub}>{fetchError}</Text>
+          <TouchableOpacity
+            style={styles.errorRetryBtn}
+            onPress={() => {
+              setLoading(true);
+              fetchData().finally(() => setLoading(false));
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="reload" size={16} color="#fff" />
+            <Text style={styles.errorRetryBtnText}>Retry Connection</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={{ paddingHorizontal: 20 }}><SkeletonCard /><SkeletonCard /><SkeletonCard /></View>
       ) : filteredWorkers.length === 0 ? (
         <View style={styles.emptyWorkers}>
@@ -399,5 +432,48 @@ const styles = StyleSheet.create({
   emptyWorkersText: {
     fontSize: 13,
     color: Colors.textMuted,
+  },
+  errorStateBox: {
+    marginHorizontal: 20,
+    marginVertical: 24,
+    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fee2e2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  errorStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  errorStateSub: {
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  errorRetryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  errorRetryBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -13,7 +13,7 @@
     "android": {
       "package": "com.kaayos.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#2b516f",
+        "backgroundColor": "#042C53",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -33,9 +33,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#2b516f",
+          "backgroundColor": "#042C53",
           "dark": {
-            "backgroundColor": "#112331"
+            "backgroundColor": "#042C53"
           }
         }
       ],
