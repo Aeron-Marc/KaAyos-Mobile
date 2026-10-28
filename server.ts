@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import fs from 'fs';
 import https from 'https';
+import nodemailer from 'nodemailer';
 
 const app = express();
 app.use(cors());
@@ -105,6 +106,61 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+const mailTransporter = nodemailer.createTransport({
+  host: process.env.MAIL_HOST || 'smtp.gmail.com',
+  port: Number(process.env.MAIL_PORT) || 587,
+  secure: false,
+  auth: {
+    user: process.env.MAIL_USERNAME || 'johndavealdaybriones009@gmail.com',
+    pass: process.env.MAIL_PASSWORD || 'gmckumlcuszdkjlp',
+  },
+});
+
+const registrationOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+
+async function sendVerificationEmail(targetEmail: string, otpCode: string, recipientName: string = 'User') {
+  const mailOptions = {
+    from: '"' + (process.env.MAIL_FROM_NAME || 'KaAyos Services') + '" <' + (process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || 'johndavealdaybriones009@gmail.com') + '>',
+    to: targetEmail,
+    subject: otpCode + ' is your KaAyos verification code',
+    html: `
+      <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:540px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 25px rgba(0,0,0,0.05);">
+        <div style="background:#042C53;padding:28px 24px;text-align:center;">
+          <h1 style="color:#ffffff;margin:0;font-size:24px;letter-spacing:-0.5px;font-weight:800;">KaAyos</h1>
+          <p style="color:#B5D4F4;margin:6px 0 0;font-size:13px;letter-spacing:0.5px;">VERIFIED HOME SERVICE ECOSYSTEM</p>
+        </div>
+        <div style="padding:32px 28px;">
+          <h2 style="color:#042C53;margin-top:0;font-size:20px;font-weight:700;">Verify your email address</h2>
+          <p style="color:#4B5563;font-size:14.5px;line-height:1.6;margin-bottom:24px;">
+            Hello <strong>${recipientName}</strong>,<br>
+            Thank you for registering with KaAyos. Use the 6-digit verification code below to verify your email address and activate your account:
+          </p>
+          <div style="background:#EAF3FC;border:2px dashed #1A6FC4;border-radius:12px;padding:18px;text-align:center;margin-bottom:24px;">
+            <span style="font-size:32px;letter-spacing:8px;font-weight:800;color:#042C53;font-family:monospace;">${otpCode}</span>
+          </div>
+          <p style="color:#6E7A88;font-size:12.5px;line-height:1.5;margin-bottom:0;">
+            • This verification code is valid for <strong>10 minutes</strong>.<br>
+            • If you did not request this registration, please ignore this email.
+          </p>
+        </div>
+        <div style="background:#F7F8FA;padding:16px 24px;text-align:center;border-top:1px solid #e2e8f0;">
+          <p style="color:#8C97A4;font-size:11.5px;margin:0;">
+            &copy; ${new Date().getFullYear()} KaAyos • Tuy, Batangas Verified Services
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await mailTransporter.sendMail(mailOptions);
+    console.log('[MAIL] Successfully sent verification email to ' + targetEmail);
+  } catch (err: any) {
+    console.error('[MAIL ERROR] Failed to send email to ' + targetEmail + ':', err.message);
+  }
+}
+
+
 function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -177,6 +233,104 @@ app.post('/api/login', async (req: Request, res: Response): Promise<any> => {
     });
   } catch (error) {
     return res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+
+app.post('/api/register/send-otp', async (req: Request, res: Response): Promise<any> => {
+  const { email, first_name } = req.body;
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: 'Email address is required.' });
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const [existing]: any = await pool.query('SELECT id FROM users WHERE email = ?', [cleanEmail]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'This email is already registered. Please sign in instead.' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    registrationOtps.set(cleanEmail, {
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+    });
+
+    console.log(`[REGISTER OTP] ${cleanEmail} -> ${otp}`);
+    sendVerificationEmail(cleanEmail, otp, first_name || 'User').catch(() => {});
+
+    return res.json({
+      success: true,
+      msg: 'Verification code sent to your email.',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/register/verify-otp', async (req: Request, res: Response): Promise<any> => {
+  const { first_name, last_name, email, phone, password, role, otp } = req.body;
+  if (!first_name || !last_name || !email || !password || !otp) {
+    return res.status(400).json({ error: 'Missing required registration fields or OTP code.' });
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const record = registrationOtps.get(cleanEmail);
+
+  if (!record || Date.now() > record.expiresAt) {
+    return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+  }
+
+  if (record.attempts >= 5) {
+    registrationOtps.delete(cleanEmail);
+    return res.status(429).json({ error: 'Too many incorrect attempts. Please request a new verification code.' });
+  }
+
+  if (record.otp !== otp.trim()) {
+    record.attempts++;
+    return res.status(400).json({ error: 'Incorrect verification code. Please check your email and try again.' });
+  }
+
+  registrationOtps.delete(cleanEmail);
+
+  try {
+    const [existing]: any = await pool.query('SELECT id FROM users WHERE email = ?', [cleanEmail]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'This email is already registered. Please sign in instead.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const fullName = `${first_name.trim()} ${last_name.trim()}`;
+    const userRole = role === 'worker' ? 'worker' : 'client';
+
+    const [result]: any = await pool.query(
+      'INSERT INTO users (first_name, last_name, name, email, phone, role, password, email_verified_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())',
+      [first_name.trim(), last_name.trim(), fullName, cleanEmail, phone ? phone.trim() : null, userRole, hashedPassword]
+    );
+
+    const newUserId = result.insertId;
+    const token = jwt.sign({ id: newUserId, role: userRole }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    return res.json({
+      success: true,
+      msg: 'Email verified and account created successfully!',
+      userId: newUserId,
+      token,
+      user: {
+        id: newUserId,
+        name: fullName,
+        first_name: first_name.trim(),
+        last_name: last_name.trim(),
+        email: cleanEmail,
+        phone: phone ? phone.trim() : null,
+        role: userRole,
+        service_category: null,
+        city: null,
+        avatar: null,
+        email_verified: true,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
 });
 

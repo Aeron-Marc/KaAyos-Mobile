@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   TextInput,
@@ -11,6 +11,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
   TextInputProps,
 } from 'react-native';
 import { Link, router } from 'expo-router';
@@ -101,16 +102,56 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
-  // Input refs for smooth keyboard next navigation
+  // OTP Modal & State
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+
+  // Input refs for smooth navigation
   const lastNameRef = useRef<any>(null);
   const emailRef = useRef<any>(null);
   const phoneRef = useRef<any>(null);
   const passwordRef = useRef<any>(null);
   const confirmPasswordRef = useRef<any>(null);
 
-  const handleCreateAccount = async () => {
+  // OTP box refs
+  const otpRefs = [
+    useRef<any>(null),
+    useRef<any>(null),
+    useRef<any>(null),
+    useRef<any>(null),
+    useRef<any>(null),
+    useRef<any>(null),
+  ];
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let timer: any;
+    if (showOtpModal && resendCountdown > 0) {
+      timer = setInterval(() => {
+        setResendCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showOtpModal, resendCountdown]);
+
+  // Step 1: Request Email Verification Code
+  const handleInitiateRegistration = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
       Alert.alert('Required Fields', 'Please complete all required fields (Name, Email, and Password).');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
       return;
     }
     if (password.length < 8) {
@@ -124,29 +165,100 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const response = await api.register({
+      const response = await api.sendRegisterOtp(email.trim(), firstName.trim());
+      setLoading(false);
+      if (response.success) {
+        setOtpDigits(['', '', '', '', '', '']);
+        setResendCountdown(60);
+        setCanResend(false);
+        setShowOtpModal(true);
+        setTimeout(() => otpRefs[0]?.current?.focus(), 350);
+      }
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Registration Error', error.message || 'Could not send verification code.');
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    try {
+      setCanResend(false);
+      setResendCountdown(60);
+      await api.sendRegisterOtp(email.trim(), firstName.trim());
+      Alert.alert('Code Resent', 'A new 6-digit verification code has been sent to your email.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not resend code. Please try again.');
+      setCanResend(true);
+    }
+  };
+
+  // Step 2: Verify Code and Finalize Registration
+  const handleVerifyAndComplete = async () => {
+    const fullOtp = otpDigits.join('');
+    if (fullOtp.length < 6) {
+      Alert.alert('Incomplete Code', 'Please enter all 6 digits sent to your email.');
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      const response = await api.verifyRegisterOtp({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
         password,
         phone: phone.trim() || undefined,
         role: role === 'provider' ? 'worker' : 'client',
+        otp: fullOtp,
       });
+
+      setVerifyingOtp(false);
       if (response.success) {
+        setShowOtpModal(false);
         signIn(response.user, response.token);
-        setLoading(false);
         const userRole = response.user.role;
         if (userRole === 'worker') {
           router.replace('/(tabs-provider)' as any);
         } else {
           router.replace('/(tabs)');
         }
-        return;
       }
     } catch (error: any) {
-      Alert.alert('Registration Failed', error.message || 'Could not create your account.');
+      setVerifyingOtp(false);
+      Alert.alert('Verification Failed', error.message || 'Incorrect verification code. Please check your email.');
     }
-    setLoading(false);
+  };
+
+  // Handle OTP digit typing with auto-advance and backspace jump
+  const handleOtpChange = (text: string, index: number) => {
+    // Handling paste of full code
+    if (text.length > 1) {
+      const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
+      const newDigits = [...otpDigits];
+      for (let i = 0; i < cleaned.length; i++) {
+        newDigits[i] = cleaned[i];
+      }
+      setOtpDigits(newDigits);
+      const nextIndex = Math.min(cleaned.length, 5);
+      otpRefs[nextIndex]?.current?.focus();
+      return;
+    }
+
+    const newDigits = [...otpDigits];
+    newDigits[index] = text;
+    setOtpDigits(newDigits);
+
+    if (text && index < 5) {
+      otpRefs[index + 1]?.current?.focus();
+    }
+  };
+
+  const handleOtpKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpRefs[index - 1]?.current?.focus();
+    }
   };
 
   const KeyboardWrapper = Platform.OS === 'ios' ? KeyboardAvoidingView : View;
@@ -184,10 +296,10 @@ export default function RegisterScreen() {
           <View style={styles.card}>
             {/* Step Progress & Eyebrow */}
             <View style={styles.stepMeta}>
-              <Text style={styles.stepCount}>ACCOUNT SETUP</Text>
+              <Text style={styles.stepCount}>STEP 01 / 02 • ACCOUNT SETUP</Text>
               <View style={styles.stepTrack}>
                 <View style={[styles.stepSeg, styles.stepSegActive]} />
-                <View style={[styles.stepSeg, styles.stepSegActive]} />
+                <View style={styles.stepSeg} />
               </View>
             </View>
 
@@ -352,7 +464,7 @@ export default function RegisterScreen() {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               returnKeyType="done"
-              onSubmitEditing={handleCreateAccount}
+              onSubmitEditing={handleInitiateRegistration}
               rightElement={
                 <TouchableOpacity
                   style={styles.eyeBtn}
@@ -370,17 +482,17 @@ export default function RegisterScreen() {
 
             {/* Terms Note */}
             <Text style={styles.termsText}>
-              By creating an account, you agree to KaAyos Verified Service Guidelines & Privacy Policy.
+              We will send a 6-digit email verification code to confirm ownership before creating your account.
             </Text>
 
             {/* Submit Button */}
-            <PressableScale haptics style={styles.submitBtn} onPress={handleCreateAccount} disabled={loading}>
+            <PressableScale haptics style={styles.submitBtn} onPress={handleInitiateRegistration} disabled={loading}>
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <View style={styles.btnContent}>
-                  <Text style={styles.submitText}>Create Account</Text>
-                  <Ionicons name="checkmark-circle-outline" size={19} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                  <Text style={styles.submitText}>Verify Email & Create Account</Text>
+                  <Ionicons name="arrow-forward" size={19} color="#FFFFFF" style={{ marginLeft: 6 }} />
                 </View>
               )}
             </PressableScale>
@@ -397,6 +509,92 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardWrapper>
+
+      {/* ───────────────────────────────────────────────────────── */}
+      {/* EMAIL VERIFICATION MODAL (Matching Web verify-email design) */}
+      {/* ───────────────────────────────────────────────────────── */}
+      <Modal
+        visible={showOtpModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOtpModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.otpCard}>
+            {/* Mail Icon in Soft Blue Circle */}
+            <View style={styles.mailIconCircle}>
+              <Ionicons name="mail" size={32} color="#1A6FC4" />
+            </View>
+
+            <Text style={styles.otpEyebrow}>EMAIL VERIFICATION</Text>
+            <Text style={styles.otpTitle}>Verify your email</Text>
+            <Text style={styles.otpSubtitle}>
+              We sent a 6-digit verification code to{'\n'}
+              <Text style={styles.otpEmailHighlight}>{email}</Text>
+            </Text>
+
+            {/* 6 Digit Input Boxes */}
+            <View style={styles.otpBoxesRow}>
+              {otpDigits.map((digit, i) => (
+                <TextInput
+                  key={i}
+                  ref={otpRefs[i]}
+                  style={[styles.otpBox, digit ? styles.otpBoxFilled : null]}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  value={digit}
+                  onChangeText={(text) => handleOtpChange(text, i)}
+                  onKeyPress={(e) => handleOtpKeyPress(e, i)}
+                  cursorColor="#1A6FC4"
+                  selectTextOnFocus
+                />
+              ))}
+            </View>
+
+            {/* Resend and Countdown */}
+            <View style={styles.resendRow}>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResendOtp} activeOpacity={0.7}>
+                  <Text style={styles.resendActiveText}>Resend verification code</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.resendDisabledText}>
+                  Resend code in <Text style={{ fontWeight: '700' }}>0:{resendCountdown < 10 ? `0${resendCountdown}` : resendCountdown}</Text>
+                </Text>
+              )}
+            </View>
+
+            {/* Verify CTA */}
+            <PressableScale
+              haptics
+              style={styles.verifyBtn}
+              onPress={handleVerifyAndComplete}
+              disabled={verifyingOtp}
+            >
+              {verifyingOtp ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <View style={styles.btnContent}>
+                  <Text style={styles.verifyBtnText}>Confirm & Finish</Text>
+                  <Ionicons name="checkmark-circle" size={19} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </View>
+              )}
+            </PressableScale>
+
+            {/* Cancel / Edit email */}
+            <TouchableOpacity
+              style={styles.editEmailBtn}
+              onPress={() => setShowOtpModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.editEmailText}>Edit registration details</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -675,5 +873,123 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#1A6FC4',
+  },
+
+  // Modal styles
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(4, 44, 83, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  otpCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 22,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.35,
+    shadowRadius: 28,
+    elevation: 12,
+  },
+  mailIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EAF3FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  otpEyebrow: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#1A6FC4',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  otpTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#042C53',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  otpSubtitle: {
+    fontSize: 13.5,
+    color: '#6E7A88',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 24,
+  },
+  otpEmailHighlight: {
+    fontWeight: '700',
+    color: '#042C53',
+  },
+  otpBoxesRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  otpBox: {
+    width: 44,
+    height: 52,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E3DED2',
+    backgroundColor: '#FBF9F5',
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#042C53',
+  },
+  otpBoxFilled: {
+    borderColor: '#1A6FC4',
+    backgroundColor: '#EAF3FC',
+  },
+  resendRow: {
+    marginBottom: 24,
+  },
+  resendDisabledText: {
+    fontSize: 12.5,
+    color: '#6E7A88',
+  },
+  resendActiveText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1A6FC4',
+  },
+  verifyBtn: {
+    backgroundColor: '#1A6FC4',
+    borderRadius: 12,
+    height: 48,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1A6FC4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  verifyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15.5,
+    fontWeight: '700',
+  },
+  editEmailBtn: {
+    marginTop: 14,
+    paddingVertical: 6,
+  },
+  editEmailText: {
+    fontSize: 12.5,
+    color: '#6E7A88',
+    fontWeight: '600',
   },
 });

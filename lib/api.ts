@@ -314,6 +314,29 @@ export async function register(data: {
   });
 }
 
+
+export async function sendRegisterOtp(email: string, firstName?: string): Promise<{ success: boolean; msg: string }> {
+  return request('/register/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, first_name: firstName }),
+  });
+}
+
+export async function verifyRegisterOtp(data: {
+  first_name: string;
+  last_name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  role?: string;
+  otp: string;
+}): Promise<{ success: boolean; msg: string; userId?: number; token: string; user: User }> {
+  return request('/register/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getCategories(): Promise<Category[]> {
   return request('/categories');
 }
