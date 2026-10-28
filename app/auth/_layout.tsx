@@ -1,19 +1,19 @@
 import { Stack } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StyleSheet } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { StyleSheet, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 export default function AuthLayout() {
   return (
-    <SafeAreaView style={styles.safe}>
-      <Stack screenOptions={{ headerShown: false }}>
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#042C53' } }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
       </Stack>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1, backgroundColor: '#042C53' },
 });
