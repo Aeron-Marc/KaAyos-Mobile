@@ -70,11 +70,6 @@ export default function ProviderMessagesScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Messages</Text>
-        <Text style={styles.subtitle}>Chat with your clients</Text>
-      </View>
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -136,7 +131,7 @@ function formatTimeAgo(dateStr: string): string {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 },
   loadingText: { textAlign: 'center', paddingVertical: 40, color: Colors.textSecondary },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   title: { fontSize: 28, fontWeight: '700', color: Colors.text },

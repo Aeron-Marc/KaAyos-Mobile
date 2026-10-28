@@ -1,4 +1,6 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
+import { View, ActivityIndicator } from 'react-native';
+import { useAuth } from '@/lib/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native';
 import { Colors } from '@/constants/theme';
@@ -8,6 +10,24 @@ import { AnimatedTabIcon } from '@/components/animated-tab-icon';
 const PROVIDER_TAB_ROUTES = ['index', 'jobs', 'schedule', 'messages', 'profile'];
 
 export default function ProviderTabLayout() {
+  const { user, token, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!user || !token) {
+    return <Redirect href="/auth/login" />;
+  }
+
+  if (user.role !== 'worker') {
+    return <Redirect href="/(tabs)" />;
+  }
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
       <SwipeableTabContainer routes={PROVIDER_TAB_ROUTES}>

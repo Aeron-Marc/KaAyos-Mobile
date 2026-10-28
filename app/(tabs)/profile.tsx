@@ -34,8 +34,11 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  // Personal Info form
+  // Accordion expansion states
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
+  const [isAddressExpanded, setIsAddressExpanded] = useState(false);
+
+  // Personal Info form
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -165,7 +168,6 @@ export default function ProfileScreen() {
         return;
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // Attempt reverse geocode
       const [geo] = await Location.reverseGeocodeAsync({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
@@ -276,21 +278,16 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Account</Text>
-        <Text style={styles.subtitle}>Manage your profile, residence & settings</Text>
-      </View>
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryAccent} />}
       >
         {loading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
+          <ActivityIndicator size="large" color={Colors.primaryAccent} style={{ marginTop: 60 }} />
         ) : user ? (
           <>
-            {/* ── CARD 1: ACCOUNT HERO (WEB SIDEBAR MIRROR) ── */}
+            {/* ── UNIFIED PROFILE HERO ── */}
             <View style={styles.heroCard}>
               <View style={styles.heroAvatarWrap}>
                 {avatarUrl ? (
@@ -311,50 +308,46 @@ export default function ProfileScreen() {
                   {uploadingPhoto ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Ionicons name="camera" size={14} color="#fff" />
+                    <Ionicons name="camera" size={13} color="#fff" />
                   )}
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.heroName}>{user.name || `${firstName} ${lastName}`}</Text>
-              <Text style={styles.heroEmail}>{user.email}</Text>
+              <Text style={styles.heroContactText}>
+                {user.email} {phone ? `• ${phone}` : ''}
+              </Text>
 
               <View style={styles.heroBadgeRow}>
                 <View style={styles.roleBadge}>
-                  <Text style={styles.roleBadgeText}>Client</Text>
+                  <Text style={styles.roleBadgeText}>Client Account</Text>
                 </View>
-                {user.email_verified && (
+                {user.email_verified ? (
                   <View style={styles.verifiedBadge}>
-                    <Ionicons name="shield-checkmark" size={12} color="#16a34a" />
+                    <Ionicons name="shield-checkmark" size={11} color="#16a34a" />
                     <Text style={styles.verifiedBadgeText}>Verified</Text>
                   </View>
-                )}
+                ) : null}
               </View>
-
-              <TouchableOpacity
-                style={styles.changePhotoTextBtn}
-                onPress={handleChangePhoto}
-                disabled={uploadingPhoto}
-              >
-                <Ionicons name="image-outline" size={14} color={Colors.primary} />
-                <Text style={styles.changePhotoText}>Change Profile Photo</Text>
-              </TouchableOpacity>
             </View>
 
-            {/* ── CARD 2: PERSONAL INFORMATION ── */}
-            <View style={styles.sectionCard}>
-              <View style={styles.cardHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.cardTitle}>Personal Information</Text>
+            {/* ── SECTION 1: PERSONAL INFORMATION ── */}
+            <Text style={styles.sectionLabel}>ACCOUNT DETAILS</Text>
+            <View style={styles.groupCard}>
+              <View style={styles.groupHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={styles.groupIconBox}>
+                    <Ionicons name="person-outline" size={16} color={Colors.primaryAccent} />
+                  </View>
+                  <Text style={styles.groupTitle}>Personal Details</Text>
                 </View>
                 {!isEditingPersonal ? (
                   <TouchableOpacity
-                    style={styles.headerActionBtn}
+                    style={styles.actionPill}
                     onPress={() => setIsEditingPersonal(true)}
                   >
-                    <Ionicons name="pencil-outline" size={14} color={Colors.primary} />
-                    <Text style={styles.headerActionText}>Edit</Text>
+                    <Ionicons name="pencil-outline" size={12} color={Colors.primaryAccent} />
+                    <Text style={styles.actionPillText}>Edit</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -368,7 +361,7 @@ export default function ProfileScreen() {
                       onChangeText={setFirstName}
                       style={styles.input}
                       placeholder="First name"
-                      placeholderTextColor={Colors.icon}
+                      placeholderTextColor={Colors.textMuted}
                     />
                   </View>
                   <View style={styles.field}>
@@ -378,7 +371,7 @@ export default function ProfileScreen() {
                       onChangeText={setLastName}
                       style={styles.input}
                       placeholder="Last name"
-                      placeholderTextColor={Colors.icon}
+                      placeholderTextColor={Colors.textMuted}
                     />
                   </View>
                   <View style={styles.field}>
@@ -388,7 +381,7 @@ export default function ProfileScreen() {
                       onChangeText={setPhone}
                       style={styles.input}
                       placeholder="09XXXXXXXXX"
-                      placeholderTextColor={Colors.icon}
+                      placeholderTextColor={Colors.textMuted}
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -403,7 +396,7 @@ export default function ProfileScreen() {
                       {savingPersonal ? (
                         <ActivityIndicator color="#fff" size="small" />
                       ) : (
-                        <Text style={styles.saveBtnText}>Save changes</Text>
+                        <Text style={styles.saveBtnText}>Save</Text>
                       )}
                     </PressableScale>
                     <TouchableOpacity
@@ -411,137 +404,141 @@ export default function ProfileScreen() {
                       onPress={handleDiscardPersonal}
                       disabled={savingPersonal}
                     >
-                      <Text style={styles.discardBtnText}>Discard</Text>
+                      <Text style={styles.discardBtnText}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               ) : (
                 <View style={styles.readOnlyList}>
                   <View style={styles.readOnlyRow}>
-                    <Text style={styles.readOnlyLabel}>Full Name</Text>
+                    <Text style={styles.readOnlyLabel}>Name</Text>
                     <Text style={styles.readOnlyVal}>{firstName} {lastName}</Text>
                   </View>
-                  <View style={styles.readOnlyDivider} />
+                  <View style={styles.rowDivider} />
                   <View style={styles.readOnlyRow}>
-                    <Text style={styles.readOnlyLabel}>Phone Number</Text>
-                    <Text style={styles.readOnlyVal}>{phone || 'Not provided'}</Text>
+                    <Text style={styles.readOnlyLabel}>Phone</Text>
+                    <Text style={styles.readOnlyVal}>{phone || 'Not set'}</Text>
                   </View>
-                  <View style={styles.readOnlyDivider} />
+                  <View style={styles.rowDivider} />
                   <View style={styles.readOnlyRow}>
-                    <Text style={styles.readOnlyLabel}>Account Email</Text>
+                    <Text style={styles.readOnlyLabel}>Email</Text>
                     <Text style={styles.readOnlyVal}>{user.email}</Text>
                   </View>
                 </View>
               )}
             </View>
 
-            {/* ── CARD 3: TUY RESIDENTIAL ADDRESS & LOCATION PICKER ── */}
-            <View style={styles.sectionCard}>
-              <View style={styles.cardHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="location-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.cardTitle}>Residential Address</Text>
+            {/* ── SECTION 2: TUY RESIDENTIAL ADDRESS (ACCORDION) ── */}
+            <Text style={styles.sectionLabel}>SERVICE DISPATCH ADDRESS</Text>
+            <View style={styles.groupCard}>
+              <TouchableOpacity
+                style={styles.addressAccordionHeader}
+                onPress={() => setIsAddressExpanded(prev => !prev)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.groupIconBox}>
+                  <Ionicons name="location-outline" size={16} color={Colors.primaryAccent} />
                 </View>
-                <View style={[
-                  styles.sourceChip,
-                  locationSource === 'gps' ? styles.sourceGps : styles.sourceManual
-                ]}>
-                  <Ionicons
-                    name={locationSource === 'gps' ? 'navigate' : 'hand-left'}
-                    size={11}
-                    color={locationSource === 'gps' ? '#1d4ed8' : '#b45309'}
-                  />
-                  <Text style={[
-                    styles.sourceChipText,
-                    locationSource === 'gps' ? { color: '#1d4ed8' } : { color: '#b45309' }
-                  ]}>
-                    {locationSource === 'gps' ? 'GPS DETECTED' : 'MANUAL TUY'}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.cardDesc}>
-                Official address within Tuy, Batangas for on-site service dispatch.
-              </Text>
-
-              {/* Current Address Display Banner */}
-              <View style={styles.addressDisplayBox}>
-                <Ionicons name="home-outline" size={20} color={Colors.primary} style={{ marginTop: 2 }} />
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={styles.addressBarangayText}>Brgy. {barangay}, Tuy, Batangas</Text>
-                  <Text style={styles.addressStreetText}>
-                    {streetAddress || 'Street address / landmark not set'}
+                  <Text style={styles.addressStreetSummary} numberOfLines={1}>
+                    {streetAddress || 'No street / landmark set'}
                   </Text>
                 </View>
-              </View>
-
-              {/* Location Actions */}
-              <View style={styles.locButtonsRow}>
-                <TouchableOpacity
-                  style={styles.gpsBtn}
-                  onPress={handleDetectGPS}
-                  disabled={locating}
-                  activeOpacity={0.8}
-                >
-                  {locating ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="locate" size={15} color="#fff" />
-                      <Text style={styles.gpsBtnText}>Detect GPS</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.barangayPickerTrigger}
-                  onPress={() => setBarangayModalVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="list" size={15} color={Colors.primary} />
-                  <Text style={styles.barangayPickerTriggerText} numberOfLines={1}>
-                    Brgy: {barangay}
-                  </Text>
-                  <Ionicons name="chevron-down" size={14} color={Colors.primary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Street & Landmark Input */}
-              <View style={[styles.field, { marginTop: 12 }]}>
-                <Text style={styles.label}>House No. / Street / Landmark</Text>
-                <View style={styles.inputWithBtn}>
-                  <TextInput
-                    value={streetAddress}
-                    onChangeText={setStreetAddress}
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="e.g. Unit 4, Rizal Street"
-                    placeholderTextColor={Colors.icon}
+                <View style={styles.addressRightHeader}>
+                  <View style={[
+                    styles.sourceTag,
+                    locationSource === 'gps' ? styles.sourceGps : styles.sourceManual
+                  ]}>
+                    <Text style={[
+                      styles.sourceTagText,
+                      locationSource === 'gps' ? { color: '#1d4ed8' } : { color: '#b45309' }
+                    ]}>
+                      {locationSource === 'gps' ? 'GPS' : 'Manual'}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={isAddressExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={Colors.textMuted}
+                    style={{ marginLeft: 6 }}
                   />
-                  <TouchableOpacity
-                    style={styles.inlineSaveBtn}
-                    onPress={() => handleSaveLocation()}
-                    disabled={savingLocation}
-                  >
-                    {savingLocation ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.inlineSaveBtnText}>Save</Text>
-                    )}
-                  </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
+
+              {isAddressExpanded && (
+                <View style={styles.addressExpandedBody}>
+                  <Text style={styles.addressHelperText}>
+                    Select your exact barangay in Tuy and house landmark for reliable home service dispatch.
+                  </Text>
+
+                  {/* Location Action Buttons */}
+                  <View style={styles.locButtonsRow}>
+                    <TouchableOpacity
+                      style={styles.gpsBtn}
+                      onPress={handleDetectGPS}
+                      disabled={locating}
+                      activeOpacity={0.8}
+                    >
+                      {locating ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="navigate" size={14} color="#fff" />
+                          <Text style={styles.gpsBtnText}>Detect GPS</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.barangayPickerTrigger}
+                      onPress={() => setBarangayModalVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="list" size={14} color={Colors.primaryAccent} />
+                      <Text style={styles.barangayPickerTriggerText} numberOfLines={1}>
+                        {barangay}
+                      </Text>
+                      <Ionicons name="chevron-down" size={12} color={Colors.primaryAccent} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Street & Landmark Input */}
+                  <View style={styles.streetInputRow}>
+                    <TextInput
+                      value={streetAddress}
+                      onChangeText={setStreetAddress}
+                      style={styles.streetInput}
+                      placeholder="House No. / Street / Landmark"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                    <TouchableOpacity
+                      style={styles.inlineSaveBtn}
+                      onPress={() => handleSaveLocation()}
+                      disabled={savingLocation}
+                    >
+                      {savingLocation ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.inlineSaveBtnText}>Save</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
 
-            {/* ── CARD 4: PREFERENCES (NOTIFICATIONS & LANGUAGE) ── */}
-            <View style={styles.sectionCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <Ionicons name="options-outline" size={20} color={Colors.primary} />
-                <Text style={styles.cardTitle}>Preferences</Text>
-              </View>
-
+            {/* ── SECTION 3: PREFERENCES ── */}
+            <Text style={styles.sectionLabel}>PREFERENCES</Text>
+            <View style={styles.groupCard}>
               {/* Notifications */}
-              <View style={{ marginBottom: 16 }}>
-                <Text style={styles.prefSubheading}>Email Notifications</Text>
+              <View style={styles.prefRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <View style={styles.groupIconBox}>
+                    <Ionicons name="notifications-outline" size={16} color={Colors.primaryAccent} />
+                  </View>
+                  <Text style={styles.prefTitle}>Email Notifications</Text>
+                </View>
                 <View style={styles.chipGroup}>
                   {NOTIFICATION_OPTIONS.map((opt) => {
                     const isSelected = emailNotifications === opt;
@@ -563,9 +560,16 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
+              <View style={styles.rowDivider} />
+
               {/* Language */}
-              <View>
-                <Text style={styles.prefSubheading}>Language</Text>
+              <View style={[styles.prefRow, { paddingTop: 12 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <View style={styles.groupIconBox}>
+                    <Ionicons name="language-outline" size={16} color={Colors.primaryAccent} />
+                  </View>
+                  <Text style={styles.prefTitle}>Language</Text>
+                </View>
                 <View style={styles.chipGroup}>
                   {LANGUAGE_OPTIONS.map((lang) => {
                     const isSelected = language === lang;
@@ -588,34 +592,34 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* ── CARD 5: SECURITY & ACCOUNT NOTICE ── */}
-            <View style={styles.sectionCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Ionicons name="lock-closed-outline" size={18} color={Colors.primary} />
-                <Text style={styles.cardTitle}>Security & Access</Text>
+            {/* ── SECTION 4: SECURITY NOTE & SIGN OUT ── */}
+            <Text style={styles.sectionLabel}>SECURITY & SESSION</Text>
+            <View style={styles.groupCard}>
+              <View style={styles.securityRow}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primaryAccent} />
+                <Text style={styles.securityText}>
+                  Protected with email OTP verification sent to {user.email}
+                </Text>
               </View>
-              <Text style={styles.cardDesc}>
-                An OTP verification code will be sent to <Text style={{ fontWeight: '600', color: Colors.text }}>{user.email}</Text> prior to any password modifications.
-              </Text>
             </View>
 
-            {/* ── SIGN OUT ── */}
+            {/* Sign Out Button */}
             <PressableScale
               onPress={handleSignOutPrompt}
               style={styles.signOutBtn}
             >
-              <Ionicons name="log-out-outline" size={18} color={Colors.error} />
-              <Text style={styles.signOutText}>Sign Out</Text>
+              <Ionicons name="log-out-outline" size={17} color={Colors.error} />
+              <Text style={styles.signOutText}>Sign Out of KaAyos</Text>
             </PressableScale>
           </>
         ) : (
-          <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+          <View style={{ alignItems: 'center', paddingVertical: 40 }}>
             <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
             <Text style={styles.loadingText}>Failed to load profile</Text>
           </View>
         )}
 
-        <View style={{ height: 24 }} />
+        <View style={{ height: 28 }} />
       </ScrollView>
 
       {/* ── TUY BARANGAY PICKER MODAL ── */}
@@ -642,7 +646,7 @@ export default function ProfileScreen() {
               data={TUY_BARANGAYS}
               keyExtractor={(item) => item}
               showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => {
+              renderItem={({ item }: { item: any }) => {
                 const isSelected = barangay === item;
                 return (
                   <TouchableOpacity
@@ -658,7 +662,7 @@ export default function ProfileScreen() {
                       {item}
                     </Text>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+                      <Ionicons name="checkmark-circle" size={18} color={Colors.primaryAccent} />
                     )}
                   </TouchableOpacity>
                 );
@@ -673,49 +677,47 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10 },
-  title: { fontSize: 26, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 30 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 30 },
   loadingText: { textAlign: 'center', paddingVertical: 40, color: Colors.textSecondary },
 
-  // Hero Identity Card
+  // Unified Profile Hero
   heroCard: {
     alignItems: 'center',
-    padding: 24,
-    borderRadius: 18,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     backgroundColor: Colors.surface,
-    marginBottom: 14,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
+    shadowColor: '#042C53',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 10,
+    shadowRadius: 8,
     elevation: 2,
   },
   heroAvatarWrap: {
     position: 'relative',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   heroAvatarImg: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.primaryLight,
   },
   heroAvatarFallback: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroAvatarText: {
     color: '#fff',
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
@@ -723,72 +725,101 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.primary,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    backgroundColor: Colors.primaryAccent,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
   },
-  heroName: { fontSize: 20, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  heroEmail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  heroBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  roleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 100,
-    backgroundColor: Colors.primaryLight,
+  heroName: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: Colors.text,
   },
-  roleBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 100,
-    backgroundColor: '#f0fdf4',
+  heroContactText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
-  verifiedBadgeText: { fontSize: 11, fontWeight: '700', color: '#16a34a' },
-  changePhotoTextBtn: {
+  heroBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginTop: 8,
   },
-  changePhotoText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: Colors.primaryLight,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primaryHover,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#f0fdf4',
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#16a34a',
+  },
 
-  // Generic Section Card
-  sectionCard: {
-    borderRadius: 18,
-    padding: 18,
+  // Section Headers
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.6,
+    marginLeft: 4,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+
+  // Grouped Cards
+  groupCard: {
     backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
+    shadowColor: '#042C53',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 6,
     elevation: 1,
   },
-  cardHeaderRow: {
+  groupHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  cardDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 12 },
-  headerActionBtn: {
+  groupIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  actionPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -797,185 +828,321 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: Colors.primaryLight,
   },
-  headerActionText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  actionPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primaryAccent,
+  },
 
-  // Read-only Details List
-  readOnlyList: { gap: 8 },
+  // Read-only Details
+  readOnlyList: {
+    marginTop: 10,
+  },
   readOnlyRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 6,
   },
-  readOnlyLabel: { fontSize: 13, color: Colors.textSecondary },
-  readOnlyVal: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  readOnlyDivider: { height: 1, backgroundColor: Colors.border },
-
-  // Personal Form Container
-  formContainer: { gap: 14 },
-  field: { gap: 6 },
-  label: { fontSize: 12, fontWeight: '600', color: Colors.text },
-  input: {
-    height: 44,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  readOnlyLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  readOnlyVal: {
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.text,
   },
-  editActionsRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  saveBtn: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  rowDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
   },
-  saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  discardBtn: {
-    paddingHorizontal: 16,
-    height: 42,
-    borderRadius: 10,
+
+  // Forms
+  formContainer: {
+    marginTop: 12,
+    gap: 8,
+  },
+  field: {
+    gap: 3,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  input: {
+    height: 40,
     borderWidth: 1,
     borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: Colors.text,
+    backgroundColor: Colors.background,
+  },
+  editActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  saveBtn: {
+    flex: 1,
+    height: 38,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  discardBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  saveBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  discardBtn: {
+    paddingHorizontal: 16,
+    height: 38,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  discardBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
 
-  // Tuy Location
-  sourceChip: {
+  // Address Accordion
+  addressAccordionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 100,
+    gap: 10,
+  },
+  addressBarangayText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  addressStreetSummary: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  addressRightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sourceTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   sourceGps: { backgroundColor: '#eff6ff' },
   sourceManual: { backgroundColor: '#fef3c7' },
-  sourceChipText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
-  addressDisplayBox: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 12,
+  sourceTagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
-  addressBarangayText: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  addressStreetText: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  locButtonsRow: { flexDirection: 'row', gap: 10 },
+  addressExpandedBody: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  addressHelperText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  locButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
   gpsBtn: {
     flex: 1,
-    height: 40,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: Colors.primaryAccent,
   },
-  gpsBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  gpsBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   barangayPickerTrigger: {
-    flex: 1.2,
-    height: 40,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: Colors.primaryLight,
+  },
+  barangayPickerTriggerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primaryHover,
+    flex: 1,
+  },
+  streetInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  streetInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
+    paddingHorizontal: 12,
+    fontSize: 12,
     backgroundColor: Colors.background,
+    color: Colors.text,
   },
-  barangayPickerTriggerText: { fontSize: 13, fontWeight: '600', color: Colors.text, flex: 1, marginRight: 4 },
-  inputWithBtn: { flexDirection: 'row', gap: 8 },
   inlineSaveBtn: {
-    paddingHorizontal: 16,
-    height: 44,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 38,
+    borderRadius: 8,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inlineSaveBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  inlineSaveBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
-  // Preferences Chips
-  prefSubheading: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8 },
-  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // Preferences
+  prefRow: {
+    paddingVertical: 2,
+  },
+  prefTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  chipGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginLeft: 38,
+  },
   prefChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.background,
   },
   prefChipActive: {
-    borderColor: Colors.primary,
     backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primaryAccent,
   },
-  prefChipText: { fontSize: 12, fontWeight: '500', color: Colors.textSecondary },
-  prefChipTextActive: { color: Colors.primary, fontWeight: '700' },
+  prefChipText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+  },
+  prefChipTextActive: {
+    color: Colors.primaryHover,
+    fontWeight: '700',
+  },
 
-  // Sign Out
+  // Security Note
+  securityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  securityText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    flex: 1,
+    lineHeight: 17,
+  },
+
+  // Sign out button
   signOutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 14,
-    backgroundColor: Colors.surface,
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#fef2f2',
     borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: 14,
-    marginTop: 4,
-    marginBottom: 8,
+    borderColor: '#fecaca',
+    marginTop: 6,
   },
-  signOutText: { fontSize: 14, fontWeight: '600', color: Colors.error },
+  signOutText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.error,
+  },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(4, 44, 83, 0.45)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 36,
+    padding: 20,
     maxHeight: '75%',
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  modalSubtitle: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14 },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginBottom: 14,
+  },
   barangayItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 13,
     paddingHorizontal: 12,
-    borderRadius: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   barangayItemActive: {
     backgroundColor: Colors.primaryLight,
+    borderRadius: 8,
   },
-  barangayItemText: { fontSize: 14, fontWeight: '500', color: Colors.text },
-  barangayItemTextActive: { fontWeight: '700', color: Colors.primary },
+  barangayItemText: {
+    fontSize: 14,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  barangayItemTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
 });

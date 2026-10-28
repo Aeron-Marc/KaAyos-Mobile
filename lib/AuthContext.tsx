@@ -1,10 +1,29 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
+import { router } from 'expo-router';
 import * as SecureStore from '@/lib/secureStorage';
 import type { User } from '@/lib/api';
 import { setToken, setOnUnauthorized } from '@/lib/api';
 
 const AUTH_TOKEN_KEY = 'kaayos_auth_token';
 const AUTH_USER_KEY = 'kaayos_auth_user';
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const jsonStr = typeof atob === 'function' ? atob(base64) : null;
+    if (!jsonStr) return false;
+    const payload = JSON.parse(jsonStr);
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -36,10 +55,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           SecureStore.getItemAsync(AUTH_TOKEN_KEY),
           SecureStore.getItemAsync(AUTH_USER_KEY),
         ]);
-        if (storedToken && storedUser) {
+        if (storedToken && storedUser && !isTokenExpired(storedToken)) {
           setToken(storedToken);
           setTokenState(storedToken);
           setUser(JSON.parse(storedUser));
+        } else if (storedToken || storedUser) {
+          await Promise.all([
+            SecureStore.deleteItemAsync(AUTH_TOKEN_KEY),
+            SecureStore.deleteItemAsync(AUTH_USER_KEY),
+          ]);
+          setToken(null);
+          setTokenState(null);
+          setUser(null);
         }
       } catch {
         // ignore storage errors
@@ -63,6 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
     SecureStore.deleteItemAsync(AUTH_USER_KEY);
+    try {
+      router.replace('/auth/login');
+    } catch {
+      // ignore
+    }
   }, []);
 
   // Register auto-logout on 401

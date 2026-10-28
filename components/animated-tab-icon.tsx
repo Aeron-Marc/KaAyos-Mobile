@@ -7,7 +7,7 @@ type IoniconsName = keyof typeof Ionicons.glyphMap;
 type Props = {
   name: IoniconsName;
   focused: boolean;
-  color: string;
+  color: any;
 };
 
 export function AnimatedTabIcon({ name, focused, color }: Props) {

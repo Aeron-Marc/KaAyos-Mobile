@@ -34,6 +34,10 @@ export default function ProviderProfileScreen() {
   const [locating, setLocating] = useState(false);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [digitalIdExpanded, setDigitalIdExpanded] = useState(false);
+  const [servicesExpanded, setServicesExpanded] = useState(false);
+  const [docsExpanded, setDocsExpanded] = useState(false);
+  const [presenceExpanded, setPresenceExpanded] = useState(false);
 
   const workerId = authUser?.id;
 
@@ -180,21 +184,16 @@ export default function ProviderProfileScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Provider Hub</Text>
-        <Text style={styles.subtitle}>Manage your Tuy services, credentials & profile</Text>
-      </View>
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {loading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 60 }} />
+          <ActivityIndicator size="large" color={Colors.primaryAccent} style={{ marginTop: 60 }} />
         ) : worker ? (
           <>
-            {/* ── CARD 1: PROVIDER HERO & STATS (WEB MIRROR) ── */}
+            {/* ── CARD 1: PROVIDER HERO & STATS ── */}
             <View style={styles.heroCard}>
               <View style={styles.heroAvatarWrap}>
                 {avatarUrl ? (
@@ -266,124 +265,206 @@ export default function ProviderProfileScreen() {
               </View>
             </View>
 
-            {/* ── CARD 2: ABOUT & LIVE TUY PRESENCE ── */}
+            {/* ── ACCORDION 1: DIGITAL ID & SHARE LINK ── */}
             <View style={styles.sectionCard}>
-              <View style={styles.cardHeaderRow}>
+              <TouchableOpacity
+                style={styles.cardHeaderRow}
+                onPress={() => setDigitalIdExpanded(prev => !prev)}
+                activeOpacity={0.7}
+              >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+                  <Ionicons name="card-outline" size={18} color={Colors.primaryAccent} />
+                  <Text style={styles.cardTitle}>Official Digital ID</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.badgeCounter}>
+                    {profile?.share_code || `KY-TUY-${String(worker.id).padStart(4, '0')}`}
+                  </Text>
+                  <Ionicons
+                    name={digitalIdExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={Colors.textMuted}
+                  />
+                </View>
+              </TouchableOpacity>
+
+              {digitalIdExpanded && (
+                <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                  <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 10 }}>
+                    Share your certified PESO Tuy accreditation link with homeowners across Tuy to receive direct bookings.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const code = profile?.share_code || `KY-TUY-${String(worker.id).padStart(4, '0')}`;
+                      Alert.alert('Worker Profile Link', `https://kaayos.tech/worker/${code}\n\nLink ready to share with clients in Tuy!`);
+                    }}
+                    style={{ backgroundColor: Colors.primaryAccent, paddingVertical: 10, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <Ionicons name="share-social-outline" size={15} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Share Digital ID Link</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* ── CARD 4: ABOUT & LIVE TUY PRESENCE (ACCORDION) ── */}
+            <View style={styles.sectionCard}>
+              <TouchableOpacity
+                style={styles.cardHeaderRow}
+                onPress={() => setPresenceExpanded(prev => !prev)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="information-circle-outline" size={18} color={Colors.primaryAccent} />
                   <Text style={styles.cardTitle}>About & Presence</Text>
                 </View>
-              </View>
-
-              {worker.bio ? (
-                <Text style={styles.bioText}>{worker.bio}</Text>
-              ) : (
-                <Text style={styles.emptyBioText}>No professional bio provided yet. Tap Edit Profile to add one.</Text>
-              )}
-
-              <View style={styles.contactList}>
-                <View style={styles.contactItem}>
-                  <Ionicons name="mail-outline" size={16} color={Colors.icon} />
-                  <Text style={styles.contactItemText}>{worker.email}</Text>
-                </View>
-                <View style={styles.contactItem}>
-                  <Ionicons name="call-outline" size={16} color={Colors.icon} />
-                  <Text style={styles.contactItemText}>{worker.phone || 'Phone not set'}</Text>
-                </View>
-                <View style={styles.contactItem}>
-                  <Ionicons name="location-outline" size={16} color={Colors.icon} />
-                  <Text style={styles.contactItemText}>{worker.city || 'Tuy, Batangas'}</Text>
-                </View>
-              </View>
-
-              {/* Integrated GPS sharing button */}
-              <TouchableOpacity
-                style={styles.gpsShareBtn}
-                onPress={handleShareLocation}
-                disabled={locating}
-                activeOpacity={0.8}
-              >
-                {locating ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="navigate-outline" size={16} color="#fff" />
-                    <Text style={styles.gpsShareBtnText}>Update Live Tuy GPS Location</Text>
-                  </>
-                )}
+                <Ionicons
+                  name={presenceExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={Colors.textMuted}
+                />
               </TouchableOpacity>
+              {presenceExpanded && (
+                <View style={styles.accordionBody}>
+                  {worker.bio ? (
+                    <Text style={styles.bioText}>{worker.bio}</Text>
+                  ) : (
+                    <Text style={styles.emptyBioText}>No professional bio provided yet. Tap Edit Profile to add one.</Text>
+                  )}
+
+                  <View style={styles.contactList}>
+                    <View style={styles.contactItem}>
+                      <Ionicons name="mail-outline" size={16} color={Colors.icon} />
+                      <Text style={styles.contactItemText}>{worker.email}</Text>
+                    </View>
+                    <View style={styles.contactItem}>
+                      <Ionicons name="call-outline" size={16} color={Colors.icon} />
+                      <Text style={styles.contactItemText}>{worker.phone || 'Phone not set'}</Text>
+                    </View>
+                    <View style={styles.contactItem}>
+                      <Ionicons name="location-outline" size={16} color={Colors.icon} />
+                      <Text style={styles.contactItemText}>{worker.city || 'Tuy, Batangas'}</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.gpsShareBtn}
+                    onPress={handleShareLocation}
+                    disabled={locating}
+                    activeOpacity={0.8}
+                  >
+                    {locating ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="navigate-outline" size={16} color="#fff" />
+                        <Text style={styles.gpsShareBtnText}>Update Live Tuy GPS Location</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
-            {/* ── CARD 3: SERVICES & TRADE SKILLS ── */}
+            {/* ── CARD 2: SERVICES & TRADE SKILLS (ACCORDION) ── */}
             <View style={styles.sectionCard}>
-              <View style={styles.cardHeaderRow}>
+              <TouchableOpacity
+                style={styles.cardHeaderRow}
+                onPress={() => setServicesExpanded(prev => !prev)}
+                activeOpacity={0.7}
+              >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="construct-outline" size={20} color={Colors.primary} />
+                  <Ionicons name="construct-outline" size={18} color={Colors.primaryAccent} />
                   <Text style={styles.cardTitle}>Services Offered</Text>
                 </View>
-                <Text style={styles.badgeCounter}>{worker.services?.length || 0} Registered</Text>
-              </View>
-
-              {worker.services && worker.services.length > 0 ? (
-                <View style={{ gap: 4 }}>
-                  {worker.services.map((svc) => (
-                    <View key={svc.id} style={styles.serviceRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                        <Ionicons
-                          name={svc.is_available ? 'checkmark-circle' : 'ellipse-outline'}
-                          size={18}
-                          color={svc.is_available ? Colors.success : Colors.icon}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.serviceName}>{svc.name}</Text>
-                          <Text style={styles.serviceStatusLabel}>
-                            {svc.is_available ? 'Accepting Bookings' : 'Temporarily Inactive'}
-                          </Text>
-                        </View>
-                      </View>
-                      <Switch
-                        value={!!svc.is_available}
-                        onValueChange={() => handleToggleService(svc.id, svc.is_available)}
-                        disabled={toggling === svc.id}
-                        trackColor={{ false: Colors.border, true: Colors.primaryLight }}
-                        thumbColor={svc.is_available ? Colors.primary : Colors.icon}
-                      />
-                    </View>
-                  ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.badgeCounter}>{worker.services?.length || 0} Registered</Text>
+                  <Ionicons
+                    name={servicesExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={Colors.textMuted}
+                  />
                 </View>
-              ) : (
-                <Text style={styles.emptyText}>No services registered under your account yet.</Text>
-              )}
+              </TouchableOpacity>
+              {servicesExpanded && (
+                <View style={styles.accordionBody}>
+                  {worker.services && worker.services.length > 0 ? (
+                    <View style={{ gap: 4 }}>
+                      {worker.services.map((svc) => (
+                        <View key={svc.id} style={styles.serviceRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                            <Ionicons
+                              name={svc.is_available ? 'checkmark-circle' : 'ellipse-outline'}
+                              size={18}
+                              color={svc.is_available ? Colors.success : Colors.icon}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.serviceName}>{svc.name}</Text>
+                              <Text style={styles.serviceStatusLabel}>
+                                {svc.is_available ? 'Accepting Bookings' : 'Temporarily Inactive'}
+                              </Text>
+                            </View>
+                          </View>
+                          <Switch
+                            value={!!svc.is_available}
+                            onValueChange={() => handleToggleService(svc.id, svc.is_available)}
+                            disabled={toggling === svc.id}
+                            trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+                            thumbColor={svc.is_available ? Colors.primaryAccent : Colors.icon}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.emptyText}>No services registered under your account yet.</Text>
+                  )}
 
-              {/* Skills Tags */}
-              {worker.skills && worker.skills.length > 0 && (
-                <View style={{ marginTop: 14 }}>
-                  <Text style={styles.subTitle}>Specialized Skills</Text>
-                  <View style={styles.skillsWrapper}>
-                    {worker.skills.map((s, i) => (
-                      <View key={i} style={styles.skillChip}>
-                        <Text style={styles.skillChipText}>
-                          {typeof s === 'string' ? s : (s as any).name}
-                        </Text>
+                  {/* Skills Tags */}
+                  {worker.skills && worker.skills.length > 0 && (
+                    <View style={{ marginTop: 14 }}>
+                      <Text style={styles.subTitle}>Specialized Skills</Text>
+                      <View style={styles.skillsWrapper}>
+                        {worker.skills.map((s, i) => (
+                          <View key={i} style={styles.skillChip}>
+                            <Text style={styles.skillChipText}>
+                              {typeof s === 'string' ? s : (s as any).name}
+                            </Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
-                  </View>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
 
-            {/* ── CARD 4: TUY TRUST & VERIFICATION DOCUMENTS (WEB MIRROR) ── */}
+            {/* ── CARD 3: TUY TRUST & VERIFICATION DOCUMENTS (ACCORDION) ── */}
             <View style={styles.sectionCard}>
-              <View style={styles.cardHeaderRow}>
+              <TouchableOpacity
+                style={styles.cardHeaderRow}
+                onPress={() => setDocsExpanded(prev => !prev)}
+                activeOpacity={0.7}
+              >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={Colors.primary} />
+                  <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primaryAccent} />
                   <Text style={styles.cardTitle}>Tuy Verification Hub</Text>
                 </View>
-              </View>
-
-              <Text style={styles.cardDesc}>
-                Official documentation required to receive verified status and accept priority bookings in Tuy.
-              </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.badgeCounter, { color: worker.verified ? Colors.success : Colors.warning }]}>
+                    {worker.verified ? 'Verified' : 'Pending'}
+                  </Text>
+                  <Ionicons
+                    name={docsExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={Colors.textMuted}
+                  />
+                </View>
+              </TouchableOpacity>
+              {docsExpanded && (
+                <View style={styles.accordionBody}>
+                  <Text style={styles.cardDesc}>
+                    Official documentation required to receive verified status and accept priority bookings in Tuy.
+                  </Text>
 
               {[
                 {
@@ -460,6 +541,8 @@ export default function ProviderProfileScreen() {
                   </View>
                 );
               })}
+                </View>
+              )}
             </View>
 
             {/* ── CARD 5: REVIEWS PREVIEW ── */}
@@ -635,6 +718,7 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 28, backgroundColor: Colors.border },
 
   // Section Card
+  accordionBody: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
   sectionCard: {
     borderRadius: 18,
     padding: 18,

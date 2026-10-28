@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, ScrollView, RefreshControl, View, Text, Alert, Image, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,15 +9,21 @@ import { PressableScale } from '@/components/pressable-scale';
 import { RescheduleModal } from '@/components/reschedule-modal';
 import { JobPhotoModal } from '@/components/job-photo-modal';
 import { ScopeAmendmentModal } from '@/components/scope-amendment-modal';
+import { BillOfMaterialsModal, type MaterialItem } from '@/components/bill-of-materials-modal';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
-const segments = ['All', 'new', 'accepted', 'en_route', 'in_progress', 'completed'] as const;
-type Segment = typeof segments[number];
+const TABS = [
+  { key: 'active', label: 'Active' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'all', label: 'All' },
+] as const;
+type TabKey = typeof TABS[number]['key'];
 
 export default function JobsScreen() {
   const { user } = useAuth();
-  const [activeSegment, setActiveSegment] = useState<Segment>('All');
+  const [activeTab, setActiveTab] = useState<TabKey>('active');
   const [jobs, setJobs] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -29,9 +35,17 @@ export default function JobsScreen() {
   const [selectedJob, setSelectedJob] = useState<Booking | null>(null);
 
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [bomVisible, setBomVisible] = useState(false);
+  const [bomJob, setBomJob] = useState<Booking | null>(null);
+  const [bomItems, setBomItems] = useState<MaterialItem[]>([]);
 
   const [amendmentVisible, setAmendmentVisible] = useState(false);
   const [amendmentJob, setAmendmentJob] = useState<Booking | null>(null);
+  const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
+
+  const toggleExpandJob = (id: number) => {
+    setExpandedJobId(prev => (prev === id ? null : id));
+  };
 
   const [, setTimerTick] = useState(0);
 
@@ -39,6 +53,29 @@ export default function JobsScreen() {
     const interval = setInterval(() => setTimerTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  
+  const handleOpenBom = async (job: Booking) => {
+    setBomJob(job);
+    try {
+      const res = await api.getMaterials(job.id);
+      setBomItems(res.materials || []);
+    } catch {
+      setBomItems([]);
+    }
+    setBomVisible(true);
+  };
+
+  const handleSaveBom = async (items: MaterialItem[]) => {
+    if (!bomJob) return;
+    try {
+      await api.saveMaterials(bomJob.id, items);
+      showToast('Bill of Materials updated', 'success');
+      fetchJobs();
+    } catch (e: any) {
+      showToast(e.message || 'Failed to save materials', 'error');
+    }
+  };
 
   const workerId = user?.id;
 
@@ -62,7 +99,26 @@ export default function JobsScreen() {
     setRefreshing(false);
   }, [fetchJobs]);
 
-  const filtered = activeSegment === 'All' ? jobs : jobs.filter(j => j.status === activeSegment);
+  const counts = useMemo(() => ({
+    active: jobs.filter(j => ['new', 'accepted', 'en_route', 'in_progress'].includes(j.status)).length,
+    completed: jobs.filter(j => j.status === 'completed').length,
+    cancelled: jobs.filter(j => ['cancelled', 'declined'].includes(j.status)).length,
+    all: jobs.length,
+  }), [jobs]);
+
+  const filtered = useMemo(() => {
+    switch (activeTab) {
+      case 'active':
+        return jobs.filter(j => ['new', 'accepted', 'en_route', 'in_progress'].includes(j.status));
+      case 'completed':
+        return jobs.filter(j => j.status === 'completed');
+      case 'cancelled':
+        return jobs.filter(j => ['cancelled', 'declined'].includes(j.status));
+      case 'all':
+      default:
+        return jobs;
+    }
+  }, [jobs, activeTab]);
 
   const activeJobCount = jobs.filter(j => ['accepted', 'en_route', 'in_progress'].includes(j.status)).length;
 
@@ -275,29 +331,33 @@ export default function JobsScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Jobs & Requests</Text>
-        <Text style={styles.subtitle}>Active service appointments across Tuy</Text>
-      </View>
-
-      {/* Segmented Filter */}
-      <View style={styles.segmentsRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentsScroll}>
-          {segments.map(seg => {
-            const active = activeSegment === seg;
+      {/* ── ORGANIZED 4-TAB FILTER ── */}
+      <View style={styles.tabContainer}>
+        <View style={styles.segmentedControl}>
+          {TABS.map(tab => {
+            const active = activeTab === tab.key;
+            const count = counts[tab.key];
             return (
-              <PressableScale
-                key={seg}
-                onPress={() => setActiveSegment(seg)}
-                style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                style={[styles.tabBtn, active && styles.tabBtnActive]}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                  {seg === 'new' ? 'New Requests' : seg === 'en_route' ? 'En Route' : seg === 'in_progress' ? 'In Progress' : seg.charAt(0).toUpperCase() + seg.slice(1)}
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                  {tab.label}
                 </Text>
-              </PressableScale>
+                {count > 0 && (
+                  <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
+                    <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>
+                      {count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
 
       <ScrollView
@@ -322,19 +382,49 @@ export default function JobsScreen() {
             const clientAlreadyConfirmed = job.confirmed_by_client_at && !job.confirmed_by_worker_at;
             const waitingForClientConfirmation = job.confirmed_by_worker_at && !job.confirmed_by_client_at && job.status === 'in_progress';
 
+            const isExpanded = expandedJobId === job.id || job.status === 'in_progress' || clientRequestedReschedule || clientAlreadyConfirmed;
+
             return (
               <View key={job.id} style={styles.card}>
-                {/* Header */}
-                <View style={styles.cardHeader}>
+                {/* Accordion Header */}
+                <TouchableOpacity
+                  style={styles.cardHeader}
+                  onPress={() => toggleExpandJob(job.id)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.clientCol}>
                     <Text style={styles.clientName}>{job.other_name || 'Client'}</Text>
-                    <Text style={styles.serviceText}>{job.service_category}</Text>
-                    {job.booking_ref && <Text style={styles.refText}>{job.booking_ref}</Text>}
+                    <View style={styles.subInfoRow}>
+                      <Text style={styles.serviceText}>{job.service_category}</Text>
+                      <Text style={styles.dotSeparator}>•</Text>
+                      <Text style={styles.dateBrief}>
+                        {new Date(job.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Text>
+                      {job.price && (
+                        <>
+                          <Text style={styles.dotSeparator}>•</Text>
+                          <Text style={styles.priceBrief}>₱{job.price.toLocaleString()}</Text>
+                        </>
+                      )}
+                    </View>
                   </View>
-                  <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                    <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
+
+                  <View style={styles.headerRight}>
+                    <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
+                    </View>
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color={Colors.icon}
+                      style={{ marginLeft: 6 }}
+                    />
                   </View>
-                </View>
+                </TouchableOpacity>
+
+                {/* Collapsible Body */}
+                {isExpanded && (
+                  <View style={styles.accordionBody}>
 
                 {/* Details */}
                 <View style={styles.infoBox}>
@@ -580,6 +670,22 @@ export default function JobsScreen() {
                     </TouchableOpacity>
                   )}
 
+                  
+                  {/* Bill of Materials Button (Panel Item #4) */}
+                  {['accepted', 'en_route', 'in_progress', 'completed'].includes(job.status) && (
+                    <TouchableOpacity
+                      style={[styles.amendmentActionBtn, { borderColor: '#0284c7', backgroundColor: '#f0f9ff', marginTop: 6 }]}
+                      onPress={() => handleOpenBom(job)}
+                    >
+                      <Ionicons name="receipt-outline" size={14} color="#0284c7" />
+                      <Text style={[styles.amendmentActionText, { color: '#0284c7' }]}>
+                        {job.materials_total && job.materials_total > 0
+                          ? `Materials Bill: ₱${Number(job.materials_total).toLocaleString()}`
+                          : 'Bill of Materials / Add Parts'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
                   {/* Auxiliary: Chat, Call, SMS with Client */}
                   <View style={styles.contactLinksRow}>
                     <TouchableOpacity
@@ -609,11 +715,29 @@ export default function JobsScreen() {
                     )}
                   </View>
                 </View>
+                </View>
+                )}
               </View>
             );
           })
         )}
       </ScrollView>
+
+      
+      {/* Bill of Materials Modal */}
+      {bomJob && (
+        <BillOfMaterialsModal
+          visible={bomVisible}
+          bookingId={bomJob.id}
+          existingMaterials={bomItems}
+          isWorker={true}
+          onClose={() => {
+            setBomVisible(false);
+            setBomJob(null);
+          }}
+          onSaveMaterials={handleSaveBom}
+        />
+      )}
 
       {/* Scope Amendment Modal */}
       {amendmentJob && (
@@ -666,18 +790,68 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: Colors.text },
   subtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  segmentsRow: { paddingVertical: 10 },
-  segmentsScroll: { paddingHorizontal: 20, gap: 8 },
-  segmentBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  segmentBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  segmentText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  segmentTextActive: { color: '#fff' },
+  tabContainer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#E8ECF0',
+    borderRadius: 12,
+    padding: 3,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 9,
+    gap: 4,
+  },
+  tabBtnActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#042C53',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tabTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  tabBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    backgroundColor: 'rgba(75, 85, 99, 0.12)',
+  },
+  tabBadgeActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  tabBadgeTextActive: {
+    color: Colors.primaryAccent,
+  },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 30 },
   empty: { alignItems: 'center', justifyContent: 'center', marginTop: 80, gap: 10 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
   emptyDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 40 },
   card: { backgroundColor: Colors.surface, borderRadius: 18, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  subInfoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3, flexWrap: 'wrap' },
+  dotSeparator: { fontSize: 12, color: Colors.textMuted, marginHorizontal: 5 },
+  dateBrief: { fontSize: 12, color: Colors.textSecondary },
+  priceBrief: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  accordionBody: { marginTop: 12 },
   clientCol: { flex: 1, marginRight: 10 },
   clientName: { fontSize: 16, fontWeight: '700', color: Colors.text },
   serviceText: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },

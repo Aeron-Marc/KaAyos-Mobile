@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, ScrollView, RefreshControl, View, Text, Image, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,15 +9,22 @@ import { PressableScale } from '@/components/pressable-scale';
 import { PromptModal } from '@/components/prompt-modal';
 import { RescheduleModal } from '@/components/reschedule-modal';
 import { ReviewModal } from '@/components/review-modal';
+import { BillOfMaterialsModal, type MaterialItem } from '@/components/bill-of-materials-modal';
+import { WarrantyRecallModal } from '@/components/warranty-recall-modal';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/AuthContext';
 
-const segments = ['All', 'new', 'accepted', 'en_route', 'in_progress', 'completed', 'cancelled'] as const;
-type Segment = typeof segments[number];
+const TABS = [
+  { key: 'active', label: 'Active' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'all', label: 'All' },
+] as const;
+type TabKey = typeof TABS[number]['key'];
 
 export default function BookingsScreen() {
   const { user } = useAuth();
-  const [activeSegment, setActiveSegment] = useState<Segment>('All');
+  const [activeTab, setActiveTab] = useState<TabKey>('active');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,22 +38,40 @@ export default function BookingsScreen() {
   const [reviewVisible, setReviewVisible] = useState(false);
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
 
+  
+  const [bomVisible, setBomVisible] = useState(false);
+  const [bomBooking, setBomBooking] = useState<Booking | null>(null);
+  const [bomItems, setBomItems] = useState<MaterialItem[]>([]);
+
+  const [warrantyVisible, setWarrantyVisible] = useState(false);
+  const [warrantyBooking, setWarrantyBooking] = useState<Booking | null>(null);
+
   const [rescheduleVisible, setRescheduleVisible] = useState(false);
   const [rescheduleMode, setRescheduleMode] = useState<'request' | 'respond'>('request');
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const toggleExpand = (id: number) => {
+    setExpandedId(prev => (prev === id ? null : id));
+  };
 
   const fetchBookings = useCallback(async () => {
+    if (!user || !api.getToken()) return;
     try {
       const data = await api.getBookings();
       setBookings(data);
     } catch (e) {
       console.error('Failed to fetch bookings', e);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    fetchBookings().finally(() => setLoading(false));
-  }, [fetchBookings]);
+    if (user && api.getToken()) {
+      fetchBookings().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [user, fetchBookings]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -54,7 +79,26 @@ export default function BookingsScreen() {
     setRefreshing(false);
   }, [fetchBookings]);
 
-  const filtered = activeSegment === 'All' ? bookings : bookings.filter(b => b.status === activeSegment);
+  const counts = useMemo(() => ({
+    active: bookings.filter(b => ['new', 'accepted', 'en_route', 'in_progress'].includes(b.status)).length,
+    completed: bookings.filter(b => b.status === 'completed').length,
+    cancelled: bookings.filter(b => ['cancelled', 'declined'].includes(b.status)).length,
+    all: bookings.length,
+  }), [bookings]);
+
+  const filtered = useMemo(() => {
+    switch (activeTab) {
+      case 'active':
+        return bookings.filter(b => ['new', 'accepted', 'en_route', 'in_progress'].includes(b.status));
+      case 'completed':
+        return bookings.filter(b => b.status === 'completed');
+      case 'cancelled':
+        return bookings.filter(b => ['cancelled', 'declined'].includes(b.status));
+      case 'all':
+      default:
+        return bookings;
+    }
+  }, [bookings, activeTab]);
 
   const handleCancel = (booking: Booking) => {
     Alert.alert('Cancel Booking', 'Are you sure you want to cancel this booking?', [
@@ -119,6 +163,34 @@ export default function BookingsScreen() {
       }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to confirm completion');
+    }
+  };
+
+  
+  const handleOpenBom = async (booking: Booking) => {
+    setBomBooking(booking);
+    try {
+      const res = await api.getMaterials(booking.id);
+      setBomItems(res.materials || []);
+    } catch {
+      setBomItems([]);
+    }
+    setBomVisible(true);
+  };
+
+  const handleOpenWarranty = (booking: Booking) => {
+    setWarrantyBooking(booking);
+    setWarrantyVisible(true);
+  };
+
+  const handleSubmitWarrantyRecall = async (reason: string) => {
+    if (!warrantyBooking) return;
+    try {
+      await api.submitWarrantyClaim(warrantyBooking.id, reason);
+      showToast('Warranty Recall submitted! The worker and PESO Tuy have been notified.', 'success');
+      fetchBookings();
+    } catch (e: any) {
+      showToast(e.message || 'Failed to submit warranty recall', 'error');
     }
   };
 
@@ -197,29 +269,33 @@ export default function BookingsScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Bookings</Text>
-        <Text style={styles.subtitle}>Track your appointments and service history in Tuy</Text>
-      </View>
-
-      {/* Segmented Filter */}
-      <View style={styles.segmentsRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentsScroll}>
-          {segments.map(seg => {
-            const active = activeSegment === seg;
+      {/* ── ORGANIZED 4-TAB FILTER ── */}
+      <View style={styles.tabContainer}>
+        <View style={styles.segmentedControl}>
+          {TABS.map(tab => {
+            const active = activeTab === tab.key;
+            const count = counts[tab.key];
             return (
-              <PressableScale
-                key={seg}
-                onPress={() => setActiveSegment(seg)}
-                style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                style={[styles.tabBtn, active && styles.tabBtnActive]}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                  {seg === 'new' ? 'Pending' : seg === 'en_route' ? 'En Route' : seg === 'in_progress' ? 'Active' : seg.charAt(0).toUpperCase() + seg.slice(1)}
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                  {tab.label}
                 </Text>
-              </PressableScale>
+                {count > 0 && (
+                  <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
+                    <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>
+                      {count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
 
       <ScrollView
@@ -243,21 +319,49 @@ export default function BookingsScreen() {
             const clientRequestedReschedule = isPendingReschedule && booking.reschedule_requested_by === user?.id;
             const needsClientConfirmation = booking.status === 'in_progress' && booking.confirmed_by_worker_at && !booking.confirmed_by_client_at;
 
+            const isExpanded = expandedId === booking.id || needsClientConfirmation || workerRequestedReschedule;
+
             return (
               <View key={booking.id} style={styles.card}>
-                {/* Top Header */}
-                <View style={styles.cardHeader}>
+                {/* Accordion Header */}
+                <TouchableOpacity
+                  style={styles.cardHeader}
+                  onPress={() => toggleExpand(booking.id)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.workerCol}>
                     <Text style={styles.workerName}>{booking.other_name || 'Worker'}</Text>
-                    <Text style={styles.serviceText}>{booking.service_category}</Text>
-                    {booking.booking_ref && (
-                      <Text style={styles.refText}>{booking.booking_ref}</Text>
-                    )}
+                    <View style={styles.subInfoRow}>
+                      <Text style={styles.serviceText}>{booking.service_category}</Text>
+                      <Text style={styles.dotSeparator}>•</Text>
+                      <Text style={styles.dateBrief}>
+                        {new Date(booking.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Text>
+                      {booking.price && (
+                        <>
+                          <Text style={styles.dotSeparator}>•</Text>
+                          <Text style={styles.priceBrief}>₱{booking.price.toLocaleString()}</Text>
+                        </>
+                      )}
+                    </View>
                   </View>
-                  <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                    <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
+
+                  <View style={styles.headerRight}>
+                    <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
+                    </View>
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color={Colors.icon}
+                      style={{ marginLeft: 6 }}
+                    />
                   </View>
-                </View>
+                </TouchableOpacity>
+
+                {/* Collapsible Body */}
+                {isExpanded && (
+                  <View style={styles.accordionBody}>
 
                 {/* Details Section */}
                 <View style={styles.infoBox}>
@@ -455,6 +559,31 @@ export default function BookingsScreen() {
                     </View>
                   )}
 
+                  
+                  {/* Bill of Materials View */}
+                  {booking.materials_total && booking.materials_total > 0 && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { borderColor: '#0284c7', backgroundColor: '#f0f9ff' }]}
+                      onPress={() => handleOpenBom(booking)}
+                    >
+                      <Ionicons name="receipt-outline" size={16} color="#0284c7" />
+                      <Text style={[styles.actionBtnText, { color: '#0284c7', fontWeight: '700' }]}>
+                        Parts ₱${Number(booking.materials_total).toLocaleString()}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* 7-Day Warranty Recall / Back-Job Action (Panel Item #10 & #12) */}
+                  {booking.status === 'completed' && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { borderColor: '#2563eb', backgroundColor: '#eff6ff' }]}
+                      onPress={() => handleOpenWarranty(booking)}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={16} color="#2563eb" />
+                      <Text style={[styles.actionBtnText, { color: '#2563eb', fontWeight: '700' }]}>Warranty Recall</Text>
+                    </TouchableOpacity>
+                  )}
+
                   {/* Report Worker for Completed */}
                   {booking.status === 'completed' && (
                     <TouchableOpacity
@@ -466,6 +595,8 @@ export default function BookingsScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
+                </View>
+                )}
               </View>
             );
           })
@@ -525,18 +656,68 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: Colors.text },
   subtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  segmentsRow: { paddingVertical: 10 },
-  segmentsScroll: { paddingHorizontal: 20, gap: 8 },
-  segmentBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  segmentBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  segmentText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  segmentTextActive: { color: '#fff' },
+  tabContainer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#E8ECF0',
+    borderRadius: 12,
+    padding: 3,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 9,
+    gap: 4,
+  },
+  tabBtnActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#042C53',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tabTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  tabBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    backgroundColor: 'rgba(75, 85, 99, 0.12)',
+  },
+  tabBadgeActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  tabBadgeTextActive: {
+    color: Colors.primaryAccent,
+  },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 30 },
   empty: { alignItems: 'center', justifyContent: 'center', marginTop: 80, gap: 10 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
   emptyDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: 40 },
   card: { backgroundColor: Colors.surface, borderRadius: 18, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  subInfoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3, flexWrap: 'wrap' },
+  dotSeparator: { fontSize: 12, color: Colors.textMuted, marginHorizontal: 5 },
+  dateBrief: { fontSize: 12, color: Colors.textSecondary },
+  priceBrief: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  accordionBody: { marginTop: 12 },
   workerCol: { flex: 1, marginRight: 10 },
   workerName: { fontSize: 16, fontWeight: '700', color: Colors.text },
   serviceText: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },

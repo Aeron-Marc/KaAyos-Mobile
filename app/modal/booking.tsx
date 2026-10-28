@@ -8,15 +8,8 @@ import { useToast } from '@/components/toast';
 import { PressableScale } from '@/components/pressable-scale';
 import { useAuth } from '@/lib/AuthContext';
 import * as api from '@/lib/api';
-import type { WorkerDetail } from '@/lib/api';
-
-const TUY_BARANGAYS = [
-  'Acle', 'Bayudbud', 'Bolbok', 'Dalima', 'Dao', 'Guinhawa',
-  'Lumbangan', 'Luntal', 'Magahis', 'Malaruhatan', 'Mataywanac',
-  'Palincaro', 'Pinagbayanan', 'Poblacion 1', 'Poblacion 2',
-  'Poblacion 3', 'Poblacion 4', 'Rillo', 'Sabang', 'San Jose',
-  'San Nicolas', 'Toong', 'Tuyon-Tuyon'
-];
+import { TUY_BARANGAYS, type WorkerDetail } from '@/lib/api';
+import { JobCalculatorModal } from '@/components/job-calculator';
 
 function getWeeks(year: number, month: number): (number | null)[][] {
   const first = new Date(year, month, 1).getDay();
@@ -53,14 +46,17 @@ export default function BookingModal() {
   const [submitting, setSubmitting] = useState(false);
 
   // Form Fields
+  const [calculatorVisible, setCalculatorVisible] = useState(false);
   const [selectedService, setSelectedService] = useState<string>('');
-  const [selectedBarangay, setSelectedBarangay] = useState('Poblacion 1');
+  const [selectedBarangay, setSelectedBarangay] = useState('Luna');
   const [showBarangayModal, setShowBarangayModal] = useState(false);
   const [houseNo, setHouseNo] = useState('');
   const [streetAddress, setStreetAddress] = useState('');
   const [propertyType, setPropertyType] = useState<'residential' | 'commercial'>('residential');
   const [pricingType, setPricingType] = useState<'fixed' | 'hourly'>('fixed');
   const [complexity, setComplexity] = useState<'standard' | 'moderate' | 'complex'>('standard');
+  const [paymentChannel, setPaymentChannel] = useState<'cash_on_completion' | 'gcash_p2p'>('cash_on_completion');
+  const [isPriority, setIsPriority] = useState(false);
   const [notes, setNotes] = useState('');
 
   // Calendar & Time
@@ -125,7 +121,17 @@ export default function BookingModal() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
         </View>
-      </SafeAreaView>
+      
+      {/* Job Calculator Modal */}
+      <JobCalculatorModal
+        visible={calculatorVisible}
+        onClose={() => setCalculatorVisible(false)}
+        onApplyEstimate={(price, hours) => {
+          showToast(`Estimate applied: ₱${price.toLocaleString()} (~ ${hours.toFixed(1)} hrs)`, 'success');
+        }}
+      />
+
+    </SafeAreaView>
     );
   }
 
@@ -168,7 +174,10 @@ export default function BookingModal() {
         price: estimatedPrice,
         property_type: propertyType,
         pricing_type: pricingType,
-        estimated_duration_hours: 2.0,
+        payment_channel: paymentChannel,
+        is_priority: isPriority,
+        warranty_days: 7,
+        estimated_duration_hours: complexity === 'complex' ? 4.0 : (complexity === 'moderate' ? 2.5 : 1.5),
         complexity_level: complexity,
       });
 
@@ -233,6 +242,22 @@ export default function BookingModal() {
             </ScrollView>
           </View>
         )}
+
+        
+        {/* Job Calculator Quick Trigger (Panel Fix F-4) */}
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', padding: 12, borderRadius: 12, marginBottom: 14 }}
+          onPress={() => setCalculatorVisible(true)}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <Ionicons name="calculator-outline" size={22} color="#16a34a" />
+            <View>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#15803d' }}>Need a Price & Duration Estimate?</Text>
+              <Text style={{ fontSize: 11, color: '#166534' }}>Calculate labor + parts before requesting</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#16a34a" />
+        </TouchableOpacity>
 
         {/* Date Selection */}
         <Text style={styles.sectionTitle}>Select Date</Text>
@@ -390,16 +415,68 @@ export default function BookingModal() {
             multiline
             numberOfLines={3}
           />
+
+          {/* Priority / Urgent Scheduling */}
+          <View style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' }}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: isPriority ? '#dc2626' : Colors.text }}>
+                {isPriority ? '⚡ Priority / Urgent Dispatch' : 'Standard Appointment'}
+              </Text>
+              <Text style={{ fontSize: 11, color: Colors.textMuted }}>
+                {isPriority ? 'Dispatches to active worker queue for faster response' : 'Standard scheduled calendar booking'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setIsPriority(!isPriority)}
+              style={{ backgroundColor: isPriority ? '#dc2626' : '#cbd5e1', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{isPriority ? 'PRIORITY' : 'NORMAL'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Payment Channel Selection */}
+          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Payment Channel</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            <TouchableOpacity
+              onPress={() => setPaymentChannel('cash_on_completion')}
+              style={[
+                styles.segmentBtn,
+                paymentChannel === 'cash_on_completion' && styles.segmentBtnActive,
+                { flex: 1, paddingVertical: 10 }
+              ]}
+            >
+              <Ionicons name="cash-outline" size={16} color={paymentChannel === 'cash_on_completion' ? Colors.primary : Colors.textMuted} />
+              <Text style={[styles.segmentBtnText, paymentChannel === 'cash_on_completion' && styles.segmentBtnTextActive]}>Cash on Done</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setPaymentChannel('gcash_p2p')}
+              style={[
+                styles.segmentBtn,
+                paymentChannel === 'gcash_p2p' && styles.segmentBtnActive,
+                { flex: 1, paddingVertical: 10 }
+              ]}
+            >
+              <Ionicons name="phone-portrait-outline" size={16} color={paymentChannel === 'gcash_p2p' ? Colors.primary : Colors.textMuted} />
+              <Text style={[styles.segmentBtnText, paymentChannel === 'gcash_p2p' && styles.segmentBtnTextActive]}>Direct GCash</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Pricing Summary */}
         <View style={styles.priceCard}>
           <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Estimated Price</Text>
+            <View>
+              <Text style={styles.priceLabel}>Estimated Price Range</Text>
+              <Text style={{ fontSize: 11, color: Colors.textMuted }}>Subject to on-site scope check</Text>
+            </View>
             <Text style={styles.priceValue}>₱{estimatedPrice.toLocaleString()}</Text>
           </View>
+          <View style={{ marginTop: 8, padding: 8, backgroundColor: '#eff6ff', borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="shield-checkmark" size={16} color="#2563eb" />
+            <Text style={{ fontSize: 11, color: '#1e40af', fontWeight: '600' }}>Includes 7-Day KaAyos Service Warranty</Text>
+          </View>
           <Text style={styles.paymentNotice}>
-            Payment method: <Text style={{ fontWeight: '700' }}>Cash on Service</Text> upon job completion and dual verification.
+            Payment method: <Text style={{ fontWeight: '700' }}>{paymentChannel === 'gcash_p2p' ? 'Direct GCash / Maya' : 'Cash on Service'}</Text> with 0% platform fee.
           </Text>
         </View>
 
@@ -431,7 +508,7 @@ export default function BookingModal() {
             <FlatList
               data={TUY_BARANGAYS}
               keyExtractor={item => item}
-              renderItem={({ item }) => {
+              renderItem={({ item }: { item: any }) => {
                 const isSelected = selectedBarangay === item;
                 return (
                   <TouchableOpacity
@@ -456,6 +533,10 @@ export default function BookingModal() {
 }
 
 const styles = StyleSheet.create({
+  segmentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  segmentBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '12' },
+  segmentBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  segmentBtnTextActive: { color: Colors.primary, fontWeight: '700' },
   safe: { flex: 1, backgroundColor: Colors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { fontSize: 16, color: Colors.error },

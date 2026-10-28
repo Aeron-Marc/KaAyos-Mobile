@@ -1,4 +1,4 @@
-export const SERVER_HOST = '192.168.0.187';
+export const SERVER_HOST = '192.168.1.13';
 export const SERVER_PORT = 3000;
 export const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
 export const API_BASE = `${SERVER_URL}/api`;
@@ -66,6 +66,7 @@ export interface User {
   language?: string;
   avatar: string | null;
   email_verified: boolean;
+  share_code?: string | null;
 }
 
 export interface Category {
@@ -83,6 +84,9 @@ export interface Worker {
   last_name: string;
   avatar: string | null;
   city: string | null;
+  barangay?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   category: string;
   rating: number;
   reviews: number;
@@ -189,6 +193,13 @@ export interface Booking {
   review_id?: number | null;
   review_rating?: number | null;
   review_comment?: string | null;
+  tip_amount?: number | null;
+  is_priority?: boolean;
+  is_broadcast_pool?: boolean;
+  warranty_days?: number;
+  warranty_expires_at?: string | null;
+  payment_channel?: string | null;
+  materials_total?: number | null;
   photos?: BookingPhoto[];
   completion_status?: {
     is_pending: boolean;
@@ -273,7 +284,7 @@ async function request<T>(
   const data = await response.json();
 
   if (!response.ok) {
-    if (response.status === 401 && onUnauthorized) {
+    if ((response.status === 401 || (response.status === 403 && data.error === 'Invalid or expired token')) && onUnauthorized) {
       onUnauthorized();
     }
     throw new Error(data.error || `Request failed with status ${response.status}`);
@@ -339,6 +350,9 @@ export async function createBooking(data: {
   pricing_type?: string;
   estimated_duration_hours?: number;
   complexity_level?: string;
+  payment_channel?: string;
+  is_priority?: boolean;
+  warranty_days?: number;
   latitude?: number;
   longitude?: number;
 }): Promise<{ success: boolean; msg: string; bookingId: number; bookingRef?: string }> {
@@ -532,6 +546,24 @@ export async function updateWorkerProfile(userId: number, data: any): Promise<{ 
   });
 }
 
+export async function getMaterials(bookingId: number): Promise<{ success: boolean; materials: any[] }> {
+  return request('/bookings/' + bookingId + '/materials');
+}
+
+export async function saveMaterials(bookingId: number, items: any[]): Promise<{ success: boolean; msg: string; materials_total: number }> {
+  return request('/bookings/' + bookingId + '/materials', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+}
+
+export async function submitWarrantyClaim(bookingId: number, claim_reason: string): Promise<{ success: boolean; msg: string; claimId: number }> {
+  return request('/bookings/' + bookingId + '/warranty-claim', {
+    method: 'POST',
+    body: JSON.stringify({ claim_reason }),
+  });
+}
+
 export async function submitDispute(data: {
   booking_id: number;
   reason: string;
@@ -701,4 +733,15 @@ export async function getWorkerDocuments(): Promise<
   Array<{ id: number; document_type: string; file_path: string; status: string; admin_notes: string | null }>
 > {
   return request('/worker/documents');
+}
+// PANEL ENHANCEMENTS APIS
+export async function submitSuspensionAppeal(grounds_of_appeal: string, supporting_document_path?: string): Promise<{ success: boolean; msg: string; appealId: number }> {
+  return request('/worker/suspension-appeal', {
+    method: 'POST',
+    body: JSON.stringify({ grounds_of_appeal, supporting_document_path }),
+  });
+}
+
+export async function getWorkerIdCard(workerId: number): Promise<{ success: boolean; share_code: string; qr_url: string; share_url: string; worker: any }> {
+  return request('/workers/' + workerId + '/id-card');
 }

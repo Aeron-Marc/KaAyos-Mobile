@@ -28,7 +28,8 @@ interface ReviewModalProps {
   visible: boolean;
   workerName: string;
   onClose: () => void;
-  onSubmit: (rating: number, comment: string) => Promise<void>;
+  onSubmit: (rating: number, comment: string, isAnonymous?: boolean) => Promise<void>;
+  onContactWorker?: () => void;
 }
 
 export function ReviewModal({
@@ -36,10 +37,12 @@ export function ReviewModal({
   workerName,
   onClose,
   onSubmit,
+  onContactWorker,
 }: ReviewModalProps) {
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const toggleTag = (tag: string) => {
@@ -54,10 +57,11 @@ export function ReviewModal({
       const fullComment = selectedTags.length > 0
         ? `[${selectedTags.join(', ')}] ${comment.trim()}`
         : comment.trim();
-      await onSubmit(rating, fullComment);
+      await onSubmit(rating, fullComment, isAnonymous);
       setRating(5);
       setComment('');
       setSelectedTags([]);
+      setIsAnonymous(false);
       onClose();
     } finally {
       setSubmitting(false);
@@ -132,6 +136,45 @@ export function ReviewModal({
               multiline
               numberOfLines={3}
             />
+
+            {/* Negative Feedback Interceptor (Panel Suggestion #11) */}
+            {rating <= 2 && (
+              <View style={{ backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa', padding: 12, borderRadius: 10, marginVertical: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="chatbubble-ellipses" size={18} color="#ea580c" />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#9a3412' }}>Encountered an issue with the service?</Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#7c2d12', marginTop: 4, lineHeight: 16 }}>
+                  Before leaving negative feedback, we encourage you to message {workerName} to request a free warranty back-job or resolve any misunderstandings.
+                </Text>
+                {onContactWorker && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onClose();
+                      onContactWorker();
+                    }}
+                    style={{ backgroundColor: '#ea580c', paddingVertical: 8, borderRadius: 6, marginTop: 8, alignItems: 'center' }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Message Worker First</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Anonymous Review Toggle (Panel Suggestion #13) */}
+            <TouchableOpacity
+              onPress={() => setIsAnonymous(!isAnonymous)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 10 }}
+            >
+              <Ionicons
+                name={isAnonymous ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={isAnonymous ? Colors.primary : Colors.textMuted}
+              />
+              <Text style={{ fontSize: 13, color: Colors.text, fontWeight: '500' }}>
+                Submit anonymously (hide my name from public view)
+              </Text>
+            </TouchableOpacity>
 
             {/* Submit & Cancel buttons */}
             <View style={styles.actionRow}>

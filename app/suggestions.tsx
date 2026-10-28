@@ -169,7 +169,7 @@ export default function SuggestionsScreen() {
                           <Text style={styles.dot}>•</Text>
                           <Text style={styles.workerPrice}>₱{w.hourly_rate}/hr</Text>
                         </>
-                      ) : null}
+                      ) : undefined}
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -228,7 +228,7 @@ export default function SuggestionsScreen() {
               <ActivityIndicator size="small" color={Colors.primary} />
               <Text style={styles.typingText}>Finding matched workers in Tuy...</Text>
             </View>
-          ) : null
+          ) : undefined
         }
       />
 

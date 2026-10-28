@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, Image, RefreshControl, View, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, Image, RefreshControl, View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,8 @@ export default function WorkerDetailScreen() {
   const [worker, setWorker] = useState<WorkerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [portfolioExpanded, setPortfolioExpanded] = useState(true);
+  const [reviewsExpanded, setReviewsExpanded] = useState(true);
 
   const fetchWorker = async () => {
     if (!id) return;
@@ -149,39 +151,69 @@ export default function WorkerDetailScreen() {
 
         {worker.portfolio && worker.portfolio.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Portfolio</Text>
-            {worker.portfolio.map((item) => (
-              <View key={item.id} style={styles.portfolioItem}>
-                {item.image_path && (
-                  <Image source={{ uri: item.image_path }} style={styles.portfolioImage} />
-                )}
-                {item.description && <Text style={styles.portfolioText}>{item.description}</Text>}
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setPortfolioExpanded(prev => !prev)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Portfolio ({worker.portfolio.length})</Text>
+              <Ionicons
+                name={portfolioExpanded ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+            {portfolioExpanded && (
+              <View style={styles.accordionContent}>
+                {worker.portfolio.map((item) => (
+                  <View key={item.id} style={styles.portfolioItem}>
+                    {item.image_path && (
+                      <Image source={{ uri: item.image_path }} style={styles.portfolioImage} />
+                    )}
+                    {item.description && <Text style={styles.portfolioText}>{item.description}</Text>}
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
           </View>
         )}
 
         {worker.reviews && worker.reviews.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reviews ({worker.reviews.length})</Text>
-            {worker.reviews.map((review) => (
-              <View key={review.id} style={styles.reviewCard}>
-                <View style={styles.reviewHeader}>
-                  <Text style={styles.reviewerName}>{review.client_name}</Text>
-                  <View style={styles.reviewStars}>
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Ionicons
-                        key={s}
-                        name={s <= review.rating ? 'star' : 'star-outline'}
-                        size={12}
-                        color={Colors.star}
-                      />
-                    ))}
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setReviewsExpanded(prev => !prev)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Reviews ({worker.reviews.length})</Text>
+              <Ionicons
+                name={reviewsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+            {reviewsExpanded && (
+              <View style={styles.accordionContent}>
+                {worker.reviews.map((review) => (
+                  <View key={review.id} style={styles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      <Text style={styles.reviewerName}>{review.client_name}</Text>
+                      <View style={styles.reviewStars}>
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Ionicons
+                            key={s}
+                            name={s <= review.rating ? 'star' : 'star-outline'}
+                            size={12}
+                            color={Colors.star}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                    {review.comment && <Text style={styles.reviewText}>{review.comment}</Text>}
                   </View>
-                </View>
-                {review.comment && <Text style={styles.reviewText}>{review.comment}</Text>}
+                ))}
               </View>
-            ))}
+            )}
           </View>
         )}
         <View style={{ height: 16 }} />
@@ -216,6 +248,8 @@ const styles = StyleSheet.create({
   bookBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12, backgroundColor: Colors.primary },
   bookBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   section: { marginHorizontal: 20, borderRadius: 16, padding: 20, backgroundColor: Colors.surface, marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  accordionContent: { marginTop: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   aboutText: { fontSize: 15, lineHeight: 22, color: Colors.textSecondary },
   skillsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

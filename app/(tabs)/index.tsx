@@ -1,37 +1,36 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { StyleSheet, ScrollView, TextInput, RefreshControl, View, Text, TouchableOpacity, Modal, FlatList } from 'react-native';
+import { StyleSheet, ScrollView, TextInput, RefreshControl, View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as api from '@/lib/api';
-import type { Category, Worker, DashboardStats } from '@/lib/api';
+import type { Category, Worker, Booking } from '@/lib/api';
 import { WorkerCard } from '@/components/worker-card';
 import type { WorkerCardData } from '@/components/worker-card';
-import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonCard } from '@/components/skeleton';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function HomeScreen() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [stats, setStats] = useState<DashboardStats['stats'] | null>(null);
-  const [catDropdown, setCatDropdown] = useState(false);
+  const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [cats, wrks, dash] = await Promise.all([
+      const [cats, wrks, bks] = await Promise.all([
         api.getCategories(),
         api.getWorkers(),
-        api.getDashboardStats().catch(() => null),
+        api.getBookings().catch(() => [] as Booking[]),
       ]);
       setCategories(cats);
       setWorkers(wrks);
-      if (dash) setStats(dash.stats);
+      const active = (bks || []).find(b => ['in_progress', 'en_route', 'accepted', 'new'].includes(b.status));
+      setActiveBooking(active || null);
     } catch (e) {
       console.error('Failed to fetch data', e);
     }
@@ -65,130 +64,138 @@ export default function HomeScreen() {
   const greeting = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primaryAccent} />}
     >
+      {/* ── COMPACT HERO ── */}
       <View style={styles.hero}>
         <View style={styles.heroTop}>
           <View>
-            <Text style={styles.heroGreeting}>Good {greeting}</Text>
-            <Text style={styles.heroName}>{user?.first_name || 'there'}</Text>
+            <View style={styles.heroLocRow}>
+              <Ionicons name="location-sharp" size={11} color="#85B7EB" />
+              <Text style={styles.heroLocText}>Tuy, Batangas</Text>
+            </View>
+            <Text style={styles.heroGreeting}>Good {greeting}, {user?.first_name || 'there'} 👋</Text>
           </View>
-          <TouchableOpacity style={styles.bellBtn} onPress={() => (router.push as any)('/notifications')}>
-            <Ionicons name="notifications-outline" size={22} color="#fff" />
-            {stats && stats.unreadMessages > 0 && (
-              <View style={styles.bellDot} />
-            )}
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => (router.push as any)('/notifications')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={19} color="#fff" />
           </TouchableOpacity>
         </View>
-        <View style={styles.heroSearch}>
-          <Ionicons name="search" size={18} color={Colors.textSecondary} />
+
+        {/* Search Input with Integrated Map Button */}
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={17} color={Colors.textMuted} />
           <TextInput
-            placeholder="What service do you need?"
+            placeholder="Search plumber, electrician, carpenter..."
             placeholderTextColor={Colors.textMuted}
-            style={styles.heroSearchInput}
+            style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
+              <Ionicons name="close-circle" size={17} color={Colors.textMuted} />
+            </TouchableOpacity>
+          ) : null}
+          <View style={styles.searchDivider} />
+          <TouchableOpacity
+            style={styles.mapSearchBtn}
+            onPress={() => (router.push as any)('/map')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="map-outline" size={15} color={Colors.primaryAccent} />
+            <Text style={styles.mapSearchBtnText}>Map</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {stats && (
-        <View style={styles.statsRow}>
-          {[
-            { label: 'Active', value: stats.activeBookings ?? 0, icon: 'calendar', color: Colors.primary, route: '/(tabs)/bookings' },
-            { label: 'Completed', value: stats.completedJobs ?? 0, icon: 'checkmark-circle', color: '#16a34a', route: '/(tabs)/bookings' },
-            { label: 'Messages', value: stats.unreadMessages ?? 0, icon: 'chatbubble', color: '#2563eb', route: '/(tabs)/chat' },
-            { label: 'Reviews', value: stats.pendingReviews ?? 0, icon: 'star', color: '#d97706', route: '/(tabs)/bookings' },
-          ].map(s => (
-            <TouchableOpacity
-              key={s.label}
-              style={[styles.statCard, { borderTopColor: s.color }]}
-              onPress={() => router.push(s.route as any)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={s.icon as any} size={18} color={s.color} />
-              <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      {/* ── CONTEXTUAL ACTIVE BOOKING BANNER ── */}
+      {activeBooking && (
+        <TouchableOpacity
+          style={styles.activeBanner}
+          onPress={() => router.push('/(tabs)/bookings')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.activeBannerIconBox}>
+            <Ionicons name="flash" size={15} color="#d97706" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.activeBannerTopRow}>
+              <Text style={styles.activeBannerTitle} numberOfLines={1}>
+                {activeBooking.service_category} • {activeBooking.other_name || 'Worker'}
+              </Text>
+              <View style={styles.activeBannerBadge}>
+                <Text style={styles.activeBannerBadgeText}>
+                  {activeBooking.status === 'in_progress' ? 'In Progress' :
+                   activeBooking.status === 'en_route' ? 'En Route' :
+                   activeBooking.status === 'accepted' ? 'Accepted' : 'Pending'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.activeBannerSub} numberOfLines={1}>
+              {new Date(activeBooking.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • Tap to view tracking
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={15} color={Colors.textMuted} />
+        </TouchableOpacity>
       )}
 
-      {/* Quick Discovery Shortcuts */}
-      <View style={styles.quickActionsRow}>
-        <PressableScale
-          style={styles.quickActionCard}
-          onPress={() => (router.push as any)('/map')}
+      {/* ── 1-TAP CATEGORY FILTER CHIPS ── */}
+      <View style={styles.categoriesSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryScroll}
         >
-          <View style={[styles.quickIconCircle, { backgroundColor: '#eff6ff' }]}>
-            <Ionicons name="map" size={18} color={Colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.quickActionTitle}>Tuy Map</Text>
-            <Text style={styles.quickActionSubtitle}>22 Barangays</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
-        </PressableScale>
-
-        <PressableScale
-          style={styles.quickActionCard}
-          onPress={() => (router.push as any)('/suggestions')}
-        >
-          <View style={[styles.quickIconCircle, { backgroundColor: '#fef3c7' }]}>
-            <Ionicons name="sparkles" size={18} color="#d97706" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.quickActionTitle}>Smart Match</Text>
-            <Text style={styles.quickActionSubtitle}>AI Assistant</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
-        </PressableScale>
+          <TouchableOpacity
+            style={[styles.categoryChip, !activeCategory && styles.categoryChipActive]}
+            onPress={() => setActiveCategory(null)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.categoryChipText, !activeCategory && styles.categoryChipTextActive]}>
+              All Services
+            </Text>
+          </TouchableOpacity>
+          {categories.map(cat => {
+            const active = activeCategory === cat.slug;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.categoryChip, active && styles.categoryChipActive]}
+                onPress={() => setActiveCategory(active ? null : cat.slug)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
+      {/* ── RECOMMENDED WORKERS ── */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Categories</Text>
-        <TouchableOpacity style={styles.catDropdownBtn} onPress={() => setCatDropdown(true)}>
-          <Text style={styles.catDropdownText} numberOfLines={1}>
-            {activeCategory ? categories.find(c => c.slug === activeCategory)?.name : 'All Categories'}
-          </Text>
-          <Ionicons name="chevron-down" size={16} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        <Text style={styles.sectionTitle}>
+          {activeCatName ? `${activeCatName} Workers` : 'Available Workers'}
+        </Text>
+        <Text style={styles.sectionMeta}>{filteredWorkers.length} available</Text>
       </View>
 
-      <Modal visible={catDropdown} transparent animationType="fade" onRequestClose={() => setCatDropdown(false)}>
-        <TouchableOpacity style={styles.catOverlay} activeOpacity={1} onPress={() => setCatDropdown(false)}>
-          <View style={styles.catDropdown}>
-            <Text style={styles.catDropdownTitle}>Select Category</Text>
-            <FlatList
-              data={[{ id: 0, name: 'All Categories', slug: null }, ...categories]}
-              keyExtractor={item => String(item.id)}
-              renderItem={({ item }) => {
-                const active = activeCategory === item.slug;
-                return (
-                  <TouchableOpacity
-                    style={[styles.catOption, active && styles.catOptionActive]}
-                    onPress={() => {
-                      setActiveCategory(item.slug);
-                      setCatDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.catOptionText, active && styles.catOptionTextActive]}>
-                      {item.name}
-                    </Text>
-                    {active && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
-                  </TouchableOpacity>
-                );
-              }}
-              style={{ maxHeight: 420 }}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <Text style={styles.sectionTitle}>Available Workers</Text>
       {loading ? (
         <View style={{ paddingHorizontal: 20 }}><SkeletonCard /><SkeletonCard /><SkeletonCard /></View>
+      ) : filteredWorkers.length === 0 ? (
+        <View style={styles.emptyWorkers}>
+          <Ionicons name="search-outline" size={36} color={Colors.textMuted} />
+          <Text style={styles.emptyWorkersText}>No workers found for this search.</Text>
+        </View>
       ) : (
         filteredWorkers.map(worker => (
           <WorkerCard
@@ -208,169 +215,189 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 24 },
   hero: {
     backgroundColor: Colors.primary,
-    paddingTop: 12,
+    paddingTop: 14,
     paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    alignItems: 'center',
+    marginBottom: 14,
   },
-  heroGreeting: { fontSize: 14, fontWeight: '500', color: 'rgba(255,255,255,0.7)', marginBottom: 2 },
-  heroName: { fontSize: 26, fontWeight: '700', color: '#fff' },
+  heroLocRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  heroLocText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#85B7EB',
+  },
+  heroGreeting: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#fff',
+  },
   bellBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bellDot: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.error,
-  },
-  heroSearch: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 48,
-    gap: 10,
-  },
-  heroSearchInput: { flex: 1, fontSize: 15, color: Colors.text },
-  statsRow: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: -14,
-    gap: 10,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    gap: 6,
-    borderTopWidth: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    borderRadius: 12,
+    paddingLeft: 12,
+    paddingRight: 6,
+    height: 44,
+    gap: 8,
+    shadowColor: '#042C53',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
   },
-  quickActionsRow: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 14,
-    gap: 12,
-  },
-  quickActionCard: {
+  searchInput: {
     flex: 1,
+    fontSize: 14,
+    color: Colors.text,
+  },
+  searchDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: Colors.border,
+    marginHorizontal: 2,
+  },
+  mapSearchBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
+    gap: 4,
+    backgroundColor: Colors.primaryLight,
+  },
+  mapSearchBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primaryAccent,
+  },
+  activeBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
     padding: 12,
-    gap: 10,
+    backgroundColor: '#fffbeb',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    borderColor: '#fde68a',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#d97706',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 1,
   },
-  quickIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  activeBannerIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#fef3c7',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quickActionTitle: {
+  activeBannerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  activeBannerTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.text,
+    color: '#92400e',
+    flex: 1,
   },
-  quickActionSubtitle: {
+  activeBannerBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  activeBannerBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#b45309',
+    textTransform: 'uppercase',
+  },
+  activeBannerSub: {
     fontSize: 11,
+    color: '#b45309',
+    marginTop: 2,
+  },
+  categoriesSection: {
+    marginTop: 14,
+  },
+  categoryScroll: {
+    paddingHorizontal: 20,
+    gap: 6,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
-  statValue: { fontSize: 20, fontWeight: '700' },
-  statLabel: { fontSize: 11, fontWeight: '500', color: Colors.textSecondary },
-  sectionTitle: {
-    fontSize: 17,
+  categoryChipTextActive: {
+    color: '#fff',
     fontWeight: '700',
-    color: Colors.text,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 14,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingRight: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
-  catDropdownBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-    maxWidth: 180,
-  },
-  catDropdownText: { fontSize: 13, fontWeight: '500', color: Colors.textSecondary },
-  catOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  catDropdown: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    paddingVertical: 8,
-    width: '80%',
-    maxWidth: 340,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  catDropdownTitle: {
-    fontSize: 15,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  catOption: {
-    flexDirection: 'row',
+  sectionMeta: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.textMuted,
+  },
+  emptyWorkers: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 40,
+    gap: 8,
   },
-  catOptionActive: { backgroundColor: Colors.primaryLight },
-  catOptionText: { fontSize: 15, fontWeight: '500', color: Colors.text },
-  catOptionTextActive: { color: Colors.primary, fontWeight: '600' },
+  emptyWorkersText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
 });

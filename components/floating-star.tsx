@@ -232,7 +232,7 @@ export function FloatingStar() {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             ListFooterComponent={loading ? (
               <View style={ov.thinking}><Text style={ov.thinkingText}>Thinking...</Text></View>
-            ) : null}
+            ) : undefined}
             renderItem={renderMessage}
           />
 

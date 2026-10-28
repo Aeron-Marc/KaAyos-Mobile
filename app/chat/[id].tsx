@@ -183,7 +183,7 @@ export default function ConversationScreen() {
               )}
             </View>
           }
-          renderItem={({ item }) => {
+          renderItem={({ item }: { item: any }) => {
             const isMine = item.sender_id === userId;
             const isPhoto = item.message.startsWith('[Photo] ');
             const photoUrl = isPhoto ? item.message.replace('[Photo] ', '').trim() : null;

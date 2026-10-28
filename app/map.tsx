@@ -12,6 +12,32 @@ import type { Worker } from '@/lib/api';
 const TUY_LAT = 14.0242;
 const TUY_LNG = 120.7302;
 
+const TUY_BARANGAY_CENTROIDS: Record<string, [number, number]> = {
+  'Acle': [14.0051, 120.7477],
+  'Bayudbud': [14.0555, 120.7363],
+  'Bolbok': [14.0215, 120.7582],
+  'Burgos': [14.0162, 120.7301],
+  'Dalima': [14.0339, 120.6950],
+  'Dao': [13.9996, 120.7547],
+  'Guinhawa': [13.9823, 120.7268],
+  'Lumbangan': [14.0245, 120.7150],
+  'Luna': [14.0192, 120.7353],
+  'Luntal': [14.0314, 120.7129],
+  'Magahis': [14.0429, 120.7532],
+  'Malibu': [13.9956, 120.7058],
+  'Mataywanac': [14.0394, 120.7393],
+  'Palincaro': [14.0096, 120.7045],
+  'Putol': [13.9930, 120.7281],
+  'Rillo': [14.0163, 120.7258],
+  'Rizal': [14.0187, 120.7289],
+  'Sabang': [14.0576, 120.7080],
+  'San Jose': [14.0236, 120.7820],
+  'Talon': [14.0179, 120.6986],
+  'Toong': [14.0492, 120.7909],
+  'Tuyon-Tuyon': [14.0044, 120.7297],
+};
+
+
 export default function MapScreen() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,12 +63,23 @@ export default function MapScreen() {
 
   const mapHtml = useMemo(() => {
     const workerPins = workers.map((w, index) => {
-      // If coordinates are missing, distribute around Tuy center
-      const angle = (index / Math.max(workers.length, 1)) * 2 * Math.PI;
-      const offsetLat = Math.sin(angle) * 0.015;
-      const offsetLng = Math.cos(angle) * 0.018;
-      const lat = TUY_LAT + offsetLat;
-      const lng = TUY_LNG + offsetLng;
+      // Resolve real barangay centroid or GPS location (Panel Fix F-3)
+      let lat = w.latitude;
+      let lng = w.longitude;
+
+      if (!lat || !lng) {
+        const brgy = w.barangay || w.city || '';
+        const cleanBrgy = brgy.replace(/^Brgy\.?\s+/i, '').trim();
+        const found = TUY_BARANGAY_CENTROIDS[cleanBrgy];
+        if (found) {
+          lat = found[0];
+          lng = found[1];
+        } else {
+          // Slight deterministic jitter around Tuy center
+          lat = TUY_LAT + ((index % 5) - 2) * 0.006;
+          lng = TUY_LNG + (((index * 3) % 5) - 2) * 0.006;
+        }
+      }
 
       return {
         id: w.id,
